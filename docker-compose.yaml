@@ -1,0 +1,80 @@
+version: '3.8'
+services:
+  # 데이터베이스: MySQL 8.0
+  db:
+    image: mysql:8.0
+    container_name: secondhand-db
+    environment:
+      MYSQL_DATABASE: secondhand
+      MYSQL_USER: secondhand_user
+      MYSQL_PASSWORD: password1234
+      MYSQL_ROOT_PASSWORD: password1234
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "secondhand_user", "--password=password1234" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1GB
+
+  # 캐시: Redis 7.0
+  redis:
+    image: redis:7.0
+    container_name: secondhand-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512MB
+
+  # Redis 지표 수집기: Redis Exporter
+  redis_exporter:
+    image: oliver006/redis_exporter
+    container_name: secondhand-redis-exporter
+    command: ["--redis.addr=redis://redis:6379"]
+    depends_on:
+      - redis
+    ports:
+      - "9121:9121"
+
+  # 모니터링: Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: secondhand-prometheus
+    volumes:
+      - ./monitoring/prometheus.yaml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - db
+      - redis
+
+  # 시각화: Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: secondhand-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+volumes:
+  mysql_data:
+  redis_data:
+  grafana_data:

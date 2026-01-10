@@ -58,6 +58,11 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // --- Testcontainers ---
+    testImplementation "org.testcontainers:testcontainers:1.19.0"
+    testImplementation "org.testcontainers:junit-jupiter:1.19.0"
+    testImplementation "org.testcontainers:mysql:1.19.0"
 }
 
 // Querydsl QClass 생성 위치 설정 (IntelliJ와 빌드 시스템 간 충돌 방지)
