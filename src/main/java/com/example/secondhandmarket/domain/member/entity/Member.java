@@ -27,7 +27,7 @@ public class Member extends BaseEntity {
     @Column(name = "nickname", unique = true)
     private String nickname; // 유저 닉네임
 
-    @Column(name = "phone_number")
+    @Column(name = "phone_number", unique = true)
     private String phoneNumber;
 
     @Column(name = "safety_score")
@@ -36,6 +36,9 @@ public class Member extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     private Role role;
+
+    @Embedded
+    private Address address;
 
     // == 생성자 == //
     protected Member() { }
@@ -57,5 +60,7 @@ public class Member extends BaseEntity {
 
 
     // == 비즈니스 로직 == //
-
+    public void updateAddress(Address address) {
+        this.address = address;
+    }
 }

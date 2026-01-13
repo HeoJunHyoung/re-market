@@ -1,14 +1,14 @@
 package com.example.secondhandmarket.domain.member.controller;
 
+import com.example.secondhandmarket.domain.member.dto.request.LocationUpdateRequest;
 import com.example.secondhandmarket.domain.member.dto.response.MemberResponse;
+import com.example.secondhandmarket.domain.member.entity.Address;
 import com.example.secondhandmarket.domain.member.service.MemberService;
 import com.example.secondhandmarket.global.security.principal.AuthMember;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
@@ -23,4 +23,13 @@ public class MemberController {
         return ResponseEntity.ok(memberResponse);
     }
 
+    @PatchMapping("/location")
+    public ResponseEntity<Void> updateLocation(@AuthenticationPrincipal AuthMember authMember,
+                                               @RequestBody LocationUpdateRequest request) {
+
+        Address address = new Address(request.getCity(), request.getDistrict(), request.getNeighborhood());
+        memberService.updateMemberLocation(authMember.getMemberId(), address);
+
+        return ResponseEntity.ok().build();
+    }
 }

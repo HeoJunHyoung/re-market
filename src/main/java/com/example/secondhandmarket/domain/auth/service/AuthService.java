@@ -41,8 +41,10 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
 
     private static final String CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    private static final String NICKNAME_PREFIX = "사용자#";
     private static final String SMS_AUTH_PREFIX = "sms:auth:";
     private static final String SMS_VERIFIED_PREFIX = "sms:verified:";
+    private static final String NICKNAME_SEQ_KEY = "nickname:sequence";
 
     /**
      * SMS 인증 코드 전송
@@ -109,7 +111,7 @@ public class AuthService {
         Member member = Member.ofLocal(
                 request.getUsername(),
                 bCryptPasswordEncoder.encode(request.getPassword()),
-                request.getNickname(),
+                generateRandomNickname(),
                 request.getPhoneNumber()
         );
         memberRepository.save(member);
@@ -215,6 +217,11 @@ public class AuthService {
         }
 
         return stringBuilder.toString();
+    }
+
+    private String generateRandomNickname() {
+        Long seq = redisTemplate.opsForValue().increment(NICKNAME_SEQ_KEY);
+        return NICKNAME_PREFIX + String.format("%08d", seq);
     }
 
 }
