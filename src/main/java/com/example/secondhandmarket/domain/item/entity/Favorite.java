@@ -5,12 +5,16 @@ import jakarta.persistence.*;
 import lombok.Getter;
 
 @Entity
-@Table(name = "wish_lists")
+@Table(name = "favorites",
+        uniqueConstraints = {
+            @UniqueConstraint(columnNames = {"member_id", "item_id"})
+        }
+)
 @Getter
-public class WishList {
+public class Favorite {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "wish_id")
+    @Column(name = "favorite_id")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -21,5 +25,5 @@ public class WishList {
     @JoinColumn(name = "item_id")
     private Item item;
 
-    protected WishList() { }
+    protected Favorite() { }
 }
