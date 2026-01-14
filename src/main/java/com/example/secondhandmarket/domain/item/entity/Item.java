@@ -79,5 +79,9 @@ public class Item extends BaseEntity {
     }
 
     // 비즈니스 로직
+    // 조회수 증가
+    public void increaseViewCount() {
+        this.viewCount++;
+    }
 
 }

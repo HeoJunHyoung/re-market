@@ -1,6 +1,7 @@
 package com.example.secondhandmarket.domain.item.service;
 
 import com.example.secondhandmarket.domain.item.dto.request.ItemCreateRequest;
+import com.example.secondhandmarket.domain.item.dto.response.ItemDetailsImageResponse;
 import com.example.secondhandmarket.domain.item.dto.response.ItemDetailsResponse;
 import com.example.secondhandmarket.domain.item.dto.response.ItemListResponse;
 import com.example.secondhandmarket.domain.item.entity.Item;
@@ -14,6 +15,7 @@ import com.example.secondhandmarket.global.error.BusinessException;
 import com.example.secondhandmarket.global.util.FileUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +37,7 @@ public class ItemService {
     /**
      * 상품 등록
      */
+    @Transactional
     public void registerItem(Long memberId, ItemCreateRequest request, List<MultipartFile> imageFiles) throws IOException {
 
         // 1. 판매자 조회
@@ -71,14 +74,87 @@ public class ItemService {
         itemRepository.save(item);
     }
 
-//    public Slice<ItemListResponse> getItemList() {
-//
-//    }
+    /**
+     * 상품 수정
+     */
 
-//    public ItemDetailsResponse getItemDetails(Long itemId) {
-//        Item item = itemRepository.findById(itemId)
-//                .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
-//
-//    }
+    /**
+     * 상품 삭제
+     */
+
+    /**
+     * 상품 목록 조회
+     */
+    public Slice<ItemListResponse> getItemList(Pageable pageable) {
+
+        // 1. 최신순 상품들 조회
+        Slice<Item> latestItems = itemRepository.findLatestItems(pageable);
+
+        // 2. 목록 응답 DTO로 변환
+        return latestItems.map(
+                item -> {
+                    String thumbnailImageUrl = item.getItemImages().stream()
+                            .filter(img -> Boolean.TRUE.equals(img.getIsRepresentative()))
+                            .findFirst()
+                            .map(i -> i.getImageUrl())
+                            .orElse(null);
+
+                    return ItemListResponse.builder()
+                            .itemId(item.getId())
+                            .title(item.getTitle())
+                            .tradePlace(item.getTradePlace())
+                            .price(item.getPrice())
+                            .thumbnailUrl(thumbnailImageUrl)
+                            .status(item.getStatus())
+                            .chatCount(item.getChatCount())
+                            .favoriteCount(item.getFavoriteCount())
+                            .createdAt(item.getCreatedAt())
+                            .build();
+                }
+        );
+    }
+
+    /**
+     * 상품 상세 조회
+     */
+    @Transactional
+    public ItemDetailsResponse getItemDetails(Long itemId) {
+
+        // 1. 상품 ID 기반 상세 조회
+        Item item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+
+        // 2. 조회수 증가
+        item.increaseViewCount();
+
+        // 3. 이미지 DTO 변환
+        List<ItemDetailsImageResponse> imageResponses = item.getItemImages().stream()
+                .map(img -> ItemDetailsImageResponse.builder()
+                        .itemImageId(img.getId())
+                        .itemId(item.getId())
+                        .imageUrl(img.getImageUrl())
+                        .isRepresentative(img.getIsRepresentative())
+                        .sortOrder(img.getSortOrder())
+                        .build())
+                .toList();
+
+        return ItemDetailsResponse.builder()
+                .itemId(item.getId())
+                .sellerId(item.getMember().getId())
+                .sellerNickname(item.getMember().getNickname())
+                .sellerAddress(item.getMember().getAddress())
+                .sellerSafetyScore(item.getMember().getSafetyScore())
+                .title(item.getTitle())
+                .content(item.getContent())
+                .price(item.getPrice())
+                .favoriteCount(item.getFavoriteCount())
+                .chatCount(item.getChatCount())
+                .viewCount(item.getViewCount())
+                .tradePlace(item.getTradePlace())
+                .status(item.getStatus())
+                .category(item.getCategory())
+                .itemImages(imageResponses)
+                .build();
+    }
 
 }

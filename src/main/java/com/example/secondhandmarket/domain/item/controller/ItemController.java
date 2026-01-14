@@ -6,6 +6,9 @@ import com.example.secondhandmarket.domain.item.dto.response.ItemListResponse;
 import com.example.secondhandmarket.domain.item.service.ItemService;
 import com.example.secondhandmarket.global.security.principal.AuthMember;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -46,20 +49,20 @@ public class ItemController {
     /**
      * 상품 전체 조회
      */
-//    @GetMapping
-//    public ResponseEntity<Slice<ItemListResponse>> getItemList() {
-//        itemService.getItemList();
-//
-//    }
+    @GetMapping
+    public ResponseEntity<Slice<ItemListResponse>> getItemList(@PageableDefault(size = 20) Pageable pageable) {
+        Slice<ItemListResponse> itemListResponses = itemService.getItemList(pageable);
+        return ResponseEntity.ok(itemListResponses);
+    }
 
     /**
      * 상품 상세 조회
      */
-//    @GetMapping("/{itemId}")
-//    public ResponseEntity<ItemDetailsResponse> getItemDetails(@PathVariable("itemId") Long itemId) {
-//        ItemDetailsResponse itemDetailsResponse = itemService.getItemDetails(itemId);
-//        return ResponseEntity.ok(itemDetailsResponse);
-//    }
+    @GetMapping("/{itemId}")
+    public ResponseEntity<ItemDetailsResponse> getItemDetails(@PathVariable("itemId") Long itemId) {
+        ItemDetailsResponse itemDetailsResponse = itemService.getItemDetails(itemId);
+        return ResponseEntity.ok(itemDetailsResponse);
+    }
 
 
 }
