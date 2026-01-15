@@ -1,5 +1,7 @@
 package com.example.secondhandmarket.domain.item.dto.response;
 
+import com.example.secondhandmarket.domain.item.entity.Item;
+import com.example.secondhandmarket.domain.item.entity.ItemImage;
 import com.example.secondhandmarket.domain.item.entity.enumerate.ItemStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,5 +25,26 @@ public class ItemListResponse {
     private Integer chatCount;
     private Integer favoriteCount;
     private LocalDateTime createdAt;
+
+    public static ItemListResponse fromEntity(Item item) {
+
+        String thumbnailUrl = item.getItemImages().stream()
+                .filter(img -> Boolean.TRUE.equals(img.getIsRepresentative()))
+                .findFirst()
+                .map(ItemImage::getImageUrl)
+                .orElse(null);
+
+        return ItemListResponse.builder()
+                .itemId(item.getId())
+                .title(item.getTitle())
+                .tradePlace(item.getTradePlace())
+                .price(item.getPrice())
+                .thumbnailUrl(thumbnailUrl)
+                .status(item.getStatus())
+                .chatCount(item.getChatCount())
+                .favoriteCount(item.getFavoriteCount())
+                .createdAt(item.getCreatedAt())
+                .build();
+    }
 
 }

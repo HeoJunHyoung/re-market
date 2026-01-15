@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -47,34 +48,30 @@ public class ItemService {
         Member seller = memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
 
-        // 2. 상품 생성
+        // 2. ItemImage 객체 리스트 생성
+        List<ItemImage> itemImages = new ArrayList<>();
+        if (imageFiles != null && !imageFiles.isEmpty()) {
+            List<String> storedFileNames = fileUtil.storeFiles(imageFiles);
+            for (int i = 0; i < storedFileNames.size(); i++) {
+                // 첫 번째 이미지를 대표 이미지로 설정
+                itemImages.add(ItemImage.createItemImage(storedFileNames.get(i), (i == 0), i));
+            }
+        }
+
+        // 3. Item 객체 생성
         Item item = Item.createItem(
                 seller,
                 request.getTitle(),
                 request.getContent(),
                 request.getPrice(),
                 request.getTradePlace(),
-                request.getCategory()
+                request.getCategory(),
+                itemImages
         );
 
-        // 3. 이미지 저장 및 연관관계 설정
-        if (imageFiles != null && !imageFiles.isEmpty()) {
-            List<String> storedFileNames = fileUtil.storeFiles(imageFiles);
-
-            for (int i = 0; i < storedFileNames.size(); i++) {
-                String storedName = storedFileNames.get(i);
-                boolean isRepresentative = (i == 0); // 첫 번째 사진을 대표 이미지로
-
-                // ItemImage 생성
-                ItemImage itemImage = ItemImage.createItemImage(storedName, isRepresentative, i);
-
-                // 연관관계 편의 메서드 호출
-                item.addItemImage(itemImage);
-            }
-        }
-
-        // 4. 저장 (Cascade로 인해 ItemImage도 함께 저장됨)
+        // 4. 저장
         itemRepository.save(item);
+
     }
 
     /**
@@ -89,32 +86,8 @@ public class ItemService {
      * 상품 목록 조회
      */
     public Slice<ItemListResponse> getItemList(Pageable pageable) {
-
-        // 1. 최신순 상품들 조회
-        Slice<Item> latestItems = itemRepository.findLatestItems(pageable);
-
-        // 2. 목록 응답 DTO로 변환
-        return latestItems.map(
-                item -> {
-                    String thumbnailImageUrl = item.getItemImages().stream()
-                            .filter(img -> Boolean.TRUE.equals(img.getIsRepresentative()))
-                            .findFirst()
-                            .map(i -> i.getImageUrl())
-                            .orElse(null);
-
-                    return ItemListResponse.builder()
-                            .itemId(item.getId())
-                            .title(item.getTitle())
-                            .tradePlace(item.getTradePlace())
-                            .price(item.getPrice())
-                            .thumbnailUrl(thumbnailImageUrl)
-                            .status(item.getStatus())
-                            .chatCount(item.getChatCount())
-                            .favoriteCount(item.getFavoriteCount())
-                            .createdAt(item.getCreatedAt())
-                            .build();
-                }
-        );
+        return itemRepository.findLatestItems(pageable)
+                .map(ItemListResponse::fromEntity);
     }
 
     /**
@@ -123,41 +96,13 @@ public class ItemService {
     @Transactional
     public ItemDetailsResponse getItemDetails(Long itemId) {
 
-        // 1. 상품 ID 기반 상세 조회
         Item item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
 
-        // 2. 조회수 증가
         item.increaseViewCount();
 
-        // 3. 이미지 DTO 변환
-        List<ItemDetailsImageResponse> imageResponses = item.getItemImages().stream()
-                .map(img -> ItemDetailsImageResponse.builder()
-                        .itemImageId(img.getId())
-                        .itemId(item.getId())
-                        .imageUrl(img.getImageUrl())
-                        .isRepresentative(img.getIsRepresentative())
-                        .sortOrder(img.getSortOrder())
-                        .build())
-                .toList();
+        return ItemDetailsResponse.fromEntity(item);
 
-        return ItemDetailsResponse.builder()
-                .itemId(item.getId())
-                .sellerId(item.getMember().getId())
-                .sellerNickname(item.getMember().getNickname())
-                .sellerAddress(item.getMember().getAddress())
-                .sellerSafetyScore(item.getMember().getSafetyScore())
-                .title(item.getTitle())
-                .content(item.getContent())
-                .price(item.getPrice())
-                .favoriteCount(item.getFavoriteCount())
-                .chatCount(item.getChatCount())
-                .viewCount(item.getViewCount())
-                .tradePlace(item.getTradePlace())
-                .status(item.getStatus())
-                .category(item.getCategory())
-                .itemImages(imageResponses)
-                .build();
     }
 
     /**
@@ -189,27 +134,8 @@ public class ItemService {
      * 나의 관심 상품 조회
      */
     public Slice<ItemListResponse> getMyFavoriteItems(Long memberId, Pageable pageable) {
-
-        Slice<Item> myFavoriteItems = favoriteRepository.findMyFavoriteItems(memberId, pageable);
-
-        return myFavoriteItems.map(item -> {
-            String thumbnailImageUrl = item.getItemImages().stream()
-                    .filter(img -> Boolean.TRUE.equals(img.getIsRepresentative()))
-                    .findFirst()
-                    .map(ItemImage::getImageUrl)
-                    .orElse(null);
-
-            return ItemListResponse.builder()
-                    .itemId(item.getId())
-                    .title(item.getTitle())
-                    .tradePlace(item.getTradePlace())
-                    .price(item.getPrice())
-                    .thumbnailUrl(thumbnailImageUrl)
-                    .status(item.getStatus())
-                    .chatCount(item.getChatCount())
-                    .favoriteCount(item.getFavoriteCount())
-                    .createdAt(item.getCreatedAt())
-                    .build();
-        });
+        return favoriteRepository.findMyFavoriteItems(memberId, pageable)
+                .map(ItemListResponse::fromEntity);
     }
+
 }

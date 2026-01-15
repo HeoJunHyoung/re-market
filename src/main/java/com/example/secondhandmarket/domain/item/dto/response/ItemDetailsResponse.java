@@ -1,5 +1,6 @@
 package com.example.secondhandmarket.domain.item.dto.response;
 
+import com.example.secondhandmarket.domain.item.entity.Item;
 import com.example.secondhandmarket.domain.item.entity.enumerate.Category;
 import com.example.secondhandmarket.domain.item.entity.enumerate.ItemStatus;
 import com.example.secondhandmarket.domain.member.entity.Address;
@@ -10,6 +11,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Data
 @Builder
@@ -37,5 +39,31 @@ public class ItemDetailsResponse {
 
     @Builder.Default
     private List<ItemDetailsImageResponse> itemImages = new ArrayList<>();
+
+    public static ItemDetailsResponse fromEntity(Item item) {
+
+        List<ItemDetailsImageResponse> imageResponses = item.getItemImages().stream()
+                .map(ItemDetailsImageResponse::fromEntity)
+                .toList();
+
+        return ItemDetailsResponse.builder()
+                .itemId(item.getId())
+                .sellerId(item.getMember().getId())
+                .sellerNickname(item.getMember().getNickname())
+                .sellerAddress(item.getMember().getAddress())
+                .sellerSafetyScore(item.getMember().getSafetyScore())
+                .title(item.getTitle())
+                .content(item.getContent())
+                .price(item.getPrice())
+                .favoriteCount(item.getFavoriteCount())
+                .chatCount(item.getChatCount())
+                .viewCount(item.getViewCount())
+                .tradePlace(item.getTradePlace())
+                .status(item.getStatus())
+                .category(item.getCategory())
+                .itemImages(imageResponses)
+                .build();
+
+    }
 
 }

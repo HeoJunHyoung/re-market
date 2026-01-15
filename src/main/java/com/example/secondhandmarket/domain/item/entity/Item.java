@@ -68,8 +68,14 @@ public class Item extends BaseEntity {
         this.status = ItemStatus.ON_SALE;
     }
 
-    public static Item createItem(Member member, String title, String content, Integer price, String tradePlace, Category category) {
-        return new Item(member, title, content, price, tradePlace, category);
+    public static Item createItem(Member member, String title, String content, Integer price,
+                                  String tradePlace, Category category, List<ItemImage> itemImages) {
+        Item item = new Item(member, title, content, price, tradePlace, category);
+
+        if (itemImages != null) {
+            itemImages.forEach(item::addItemImage);
+        }
+        return item;
     }
 
     // 연관관계 편의메서드
