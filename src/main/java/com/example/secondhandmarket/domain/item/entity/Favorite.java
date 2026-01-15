@@ -25,5 +25,17 @@ public class Favorite {
     @JoinColumn(name = "item_id")
     private Item item;
 
+    // 생성자
     protected Favorite() { }
+
+    private Favorite(Member member, Item item) {
+        this.member = member;
+        this.item = item;
+    }
+
+    public static Favorite createFavorite(Member member, Item item) {
+        return new Favorite(member, item);
+    }
+
+
 }

@@ -4,9 +4,11 @@ import com.example.secondhandmarket.domain.item.dto.request.ItemCreateRequest;
 import com.example.secondhandmarket.domain.item.dto.response.ItemDetailsImageResponse;
 import com.example.secondhandmarket.domain.item.dto.response.ItemDetailsResponse;
 import com.example.secondhandmarket.domain.item.dto.response.ItemListResponse;
+import com.example.secondhandmarket.domain.item.entity.Favorite;
 import com.example.secondhandmarket.domain.item.entity.Item;
 import com.example.secondhandmarket.domain.item.entity.ItemImage;
 import com.example.secondhandmarket.domain.item.exception.ItemErrorCode;
+import com.example.secondhandmarket.domain.item.repository.FavoriteRepository;
 import com.example.secondhandmarket.domain.item.repository.ItemRepository;
 import com.example.secondhandmarket.domain.member.entity.Member;
 import com.example.secondhandmarket.domain.member.exception.MemberErrorCode;
@@ -32,6 +34,7 @@ public class ItemService {
 
     private final ItemRepository itemRepository;
     private final MemberRepository memberRepository;
+    private final FavoriteRepository favoriteRepository;
     private final FileUtil fileUtil;
 
     /**
@@ -66,7 +69,7 @@ public class ItemService {
                 ItemImage itemImage = ItemImage.createItemImage(storedName, isRepresentative, i);
 
                 // 연관관계 편의 메서드 호출
-                item.addImage(itemImage);
+                item.addItemImage(itemImage);
             }
         }
 
@@ -157,4 +160,56 @@ public class ItemService {
                 .build();
     }
 
+    /**
+     * 관심 상품 등록/해제 토글
+     */
+    public void toggleFavorite(Long memberId, Long itemId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+        Item item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+
+        favoriteRepository.findByMemberAndItem(member, item)
+                .ifPresentOrElse(
+                        favorite -> {
+                            // 이미 있으면 관심 해제
+                            favoriteRepository.delete(favorite);
+                            item.decreaseFavoriteCount();
+                        },
+                        () -> {
+                            // 없으면 관심 등록
+                            Favorite favorite = Favorite.createFavorite(member, item);
+                            favoriteRepository.save(favorite);
+                            item.increaseFavoriteCount();
+                        }
+                );
+    }
+
+    /**
+     * 나의 관심 상품 조회
+     */
+    public Slice<ItemListResponse> getMyFavoriteItems(Long memberId, Pageable pageable) {
+
+        Slice<Item> myFavoriteItems = favoriteRepository.findMyFavoriteItems(memberId, pageable);
+
+        return myFavoriteItems.map(item -> {
+            String thumbnailImageUrl = item.getItemImages().stream()
+                    .filter(img -> Boolean.TRUE.equals(img.getIsRepresentative()))
+                    .findFirst()
+                    .map(ItemImage::getImageUrl)
+                    .orElse(null);
+
+            return ItemListResponse.builder()
+                    .itemId(item.getId())
+                    .title(item.getTitle())
+                    .tradePlace(item.getTradePlace())
+                    .price(item.getPrice())
+                    .thumbnailUrl(thumbnailImageUrl)
+                    .status(item.getStatus())
+                    .chatCount(item.getChatCount())
+                    .favoriteCount(item.getFavoriteCount())
+                    .createdAt(item.getCreatedAt())
+                    .build();
+        });
+    }
 }

@@ -73,15 +73,23 @@ public class Item extends BaseEntity {
     }
 
     // 연관관계 편의메서드
-    public void addImage(ItemImage image) {
+    public void addItemImage(ItemImage image) {
         this.itemImages.add(image);
         image.setItem(this);
     }
 
     // 비즈니스 로직
-    // 조회수 증가
+
     public void increaseViewCount() {
         this.viewCount++;
+    }
+
+    public void increaseFavoriteCount() {
+        this.favoriteCount ++;
+    }
+
+    public void decreaseFavoriteCount() {
+        this.favoriteCount --;
     }
 
 }
