@@ -6,12 +6,10 @@ import com.example.secondhandmarket.domain.item.dto.response.ItemListResponse;
 import com.example.secondhandmarket.domain.item.service.ItemService;
 import com.example.secondhandmarket.global.security.principal.AuthMember;
 import lombok.RequiredArgsConstructor;
-import org.apache.coyote.Response;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -61,8 +59,11 @@ public class ItemController {
      * 상품 상세 조회
      */
     @GetMapping("/{itemId}")
-    public ResponseEntity<ItemDetailsResponse> getItemDetails(@PathVariable("itemId") Long itemId) {
-        ItemDetailsResponse itemDetailsResponse = itemService.getItemDetails(itemId);
+    public ResponseEntity<ItemDetailsResponse> getItemDetails(@AuthenticationPrincipal AuthMember authMember,
+                                                              @PathVariable("itemId") Long itemId) {
+        Long memberId = (authMember != null) ? authMember.getMemberId() : null;
+        ItemDetailsResponse itemDetailsResponse = itemService.getItemDetails(itemId, memberId);
+
         return ResponseEntity.ok(itemDetailsResponse);
     }
 

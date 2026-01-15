@@ -94,20 +94,27 @@ public class ItemService {
      * 상품 상세 조회
      */
     @Transactional
-    public ItemDetailsResponse getItemDetails(Long itemId) {
+    public ItemDetailsResponse getItemDetails(Long itemId, Long memberId) {
 
         Item item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
 
         item.increaseViewCount();
 
-        return ItemDetailsResponse.fromEntity(item);
+        boolean isFavorite = false;
+        if (memberId != null) {
+            // 로그인한 경우 찜 여부 확인
+            Member member = memberRepository.getReferenceById(memberId); // 프록시 조회로 성능 최적화
+            isFavorite = favoriteRepository.findByMemberAndItem(member, item).isPresent();
+        }
 
+        return ItemDetailsResponse.fromEntity(item, isFavorite);
     }
 
     /**
      * 관심 상품 등록/해제 토글
      */
+    @Transactional
     public void toggleFavorite(Long memberId, Long itemId) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));

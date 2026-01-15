@@ -37,10 +37,12 @@ public class ItemDetailsResponse {
     private ItemStatus status;
     private Category category;
 
+    private Boolean isFavorite;
+
     @Builder.Default
     private List<ItemDetailsImageResponse> itemImages = new ArrayList<>();
 
-    public static ItemDetailsResponse fromEntity(Item item) {
+    public static ItemDetailsResponse fromEntity(Item item, boolean isFavorite) {
 
         List<ItemDetailsImageResponse> imageResponses = item.getItemImages().stream()
                 .map(ItemDetailsImageResponse::fromEntity)
@@ -62,6 +64,7 @@ public class ItemDetailsResponse {
                 .status(item.getStatus())
                 .category(item.getCategory())
                 .itemImages(imageResponses)
+                .isFavorite(isFavorite)
                 .build();
 
     }
