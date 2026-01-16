@@ -34,7 +34,7 @@ services:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: password1234
     volumes:
-      - ./mongodb/data:/data/db
+      - mongodb_data:/data/db
     restart: always
 
   # 캐시: Redis 7.0
@@ -91,3 +91,4 @@ volumes:
   mysql_data:
   redis_data:
   grafana_data:
+  mongodb_data:
