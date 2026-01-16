@@ -98,4 +98,8 @@ public class Item extends BaseEntity {
         this.favoriteCount --;
     }
 
+    public void changeStatus(ItemStatus status) {
+        this.status = status;
+    }
+
 }

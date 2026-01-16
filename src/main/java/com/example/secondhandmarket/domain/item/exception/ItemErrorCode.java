@@ -7,9 +7,10 @@ import org.springframework.http.HttpStatus;
 @Getter
 public enum ItemErrorCode implements ErrorCode {
 
-    ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "I-001", "존재하지 않는 상품입니다.");
-
-
+    ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "I-001", "존재하지 않는 상품입니다."),
+    NOT_ITEM_OWNER(HttpStatus.FORBIDDEN, "I-002", "상품 수정 권한이 없습니다."),
+    BUYER_INFO_REQUIRED(HttpStatus.BAD_REQUEST, "I-003", "구매자 정보가 필요합니다."),
+    ALREADY_SOLD_OUT(HttpStatus.BAD_REQUEST, "I-004", "이미 판매 완료된 상품입니다.");
 
     private HttpStatus status;
     private String code;

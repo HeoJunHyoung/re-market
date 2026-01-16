@@ -1,18 +1,21 @@
 package com.example.secondhandmarket.domain.item.service;
 
 import com.example.secondhandmarket.domain.item.dto.request.ItemCreateRequest;
+import com.example.secondhandmarket.domain.item.dto.request.ItemStatusUpdateRequest;
 import com.example.secondhandmarket.domain.item.dto.response.ItemDetailsImageResponse;
 import com.example.secondhandmarket.domain.item.dto.response.ItemDetailsResponse;
 import com.example.secondhandmarket.domain.item.dto.response.ItemListResponse;
 import com.example.secondhandmarket.domain.item.entity.Favorite;
 import com.example.secondhandmarket.domain.item.entity.Item;
 import com.example.secondhandmarket.domain.item.entity.ItemImage;
+import com.example.secondhandmarket.domain.item.entity.enumerate.ItemStatus;
 import com.example.secondhandmarket.domain.item.exception.ItemErrorCode;
 import com.example.secondhandmarket.domain.item.repository.FavoriteRepository;
 import com.example.secondhandmarket.domain.item.repository.ItemRepository;
 import com.example.secondhandmarket.domain.member.entity.Member;
 import com.example.secondhandmarket.domain.member.exception.MemberErrorCode;
 import com.example.secondhandmarket.domain.member.repository.MemberRepository;
+import com.example.secondhandmarket.domain.trade.entity.Trade;
 import com.example.secondhandmarket.global.error.BusinessException;
 import com.example.secondhandmarket.global.util.FileUtil;
 import lombok.RequiredArgsConstructor;
@@ -72,6 +75,43 @@ public class ItemService {
         // 4. 저장
         itemRepository.save(item);
 
+    }
+
+    /**
+     * 상품 상태 변경
+     */
+    @Transactional
+    public void updateItemStatus(Long sellerId, Long itemId, ItemStatusUpdateRequest request) {
+
+        Item item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+
+        // 1. 판매자 권한 검증
+        if (!item.getMember().getId().equals(sellerId)) {
+            throw new BusinessException(ItemErrorCode.NOT_ITEM_OWNER);
+        }
+
+        ItemStatus newStatus = ItemStatus.valueOf(request.getStatus());
+
+        // 2. 상태 변경 로직
+        if (newStatus == ItemStatus.SOLD) {
+            // 거래 완료: 구매자 지정 필수
+            if (request.getBuyerId() == null) {
+                throw new IllegalArgumentException("구매자 정보가 없습니다.");
+            }
+
+            Member seller = memberRepository.findById(sellerId)
+                    .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+            Member buyer = memberRepository.findById(request.getBuyerId())
+                    .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+            Trade.completeTrade(item, seller, buyer);
+
+        } else {
+            // 판매중 / 예약중: 상태만 변경 (구매자 정보 초기화)
+            item.changeStatus(newStatus);
+        }
     }
 
     /**

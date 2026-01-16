@@ -9,6 +9,7 @@ import com.example.secondhandmarket.domain.chat.repository.jpa.ChatRoomRepositor
 import com.example.secondhandmarket.domain.chat.repository.mongo.ChatMessageRepository;
 import com.example.secondhandmarket.domain.item.entity.Item;
 import com.example.secondhandmarket.domain.item.repository.ItemRepository;
+import com.example.secondhandmarket.domain.member.dto.response.MemberResponse;
 import com.example.secondhandmarket.domain.member.entity.Member;
 import com.example.secondhandmarket.domain.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
@@ -82,6 +83,16 @@ public class ChatService {
     public List<ChatMessageResponse> getChatHistory(Long roomId) {
         return chatMessageRepository.findByChatRoomIdOrderByCreatedAtAsc(roomId).stream()
                 .map(ChatMessageResponse::from)
+                .toList();
+    }
+
+    /**
+     * 특정 상품에 대해 채팅을 건 사용자 목록 조회
+     */
+    public List<MemberResponse> getChatBuyers(Long itemId) {
+        List<Member> buyers = chatRoomRepository.findBuyersByItemId(itemId);
+        return buyers.stream()
+                .map(MemberResponse::fromEntity)
                 .toList();
     }
 }

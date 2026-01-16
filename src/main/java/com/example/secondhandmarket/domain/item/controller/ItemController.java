@@ -1,6 +1,7 @@
 package com.example.secondhandmarket.domain.item.controller;
 
 import com.example.secondhandmarket.domain.item.dto.request.ItemCreateRequest;
+import com.example.secondhandmarket.domain.item.dto.request.ItemStatusUpdateRequest;
 import com.example.secondhandmarket.domain.item.dto.response.ItemDetailsResponse;
 import com.example.secondhandmarket.domain.item.dto.response.ItemListResponse;
 import com.example.secondhandmarket.domain.item.service.ItemService;
@@ -34,6 +35,16 @@ public class ItemController {
                                              @RequestPart(value = "images", required = false) List<MultipartFile> imageFiles) throws IOException {
         itemService.registerItem(authMember.getMemberId(), request, imageFiles);
         return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    /**
+     * 상품 상태 변경 (판매중 / 예약중 / 거래완료)
+     */
+    @PatchMapping("/{itemId}/status")
+    public ResponseEntity<Void> updateItemStatus(@AuthenticationPrincipal AuthMember authMember,
+                                                 @PathVariable Long itemId, @RequestBody ItemStatusUpdateRequest request) {
+        itemService.updateItemStatus(authMember.getMemberId(), itemId, request);
+        return ResponseEntity.ok().build();
     }
 
     /**
