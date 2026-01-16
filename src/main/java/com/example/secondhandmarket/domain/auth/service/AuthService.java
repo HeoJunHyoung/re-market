@@ -117,6 +117,9 @@ public class AuthService {
         memberRepository.save(member);
     }
 
+    /**
+     * 로그인
+     */
     @Transactional
     public AuthResult login(LoginRequest request) {
         // Spring Security가 인식할 수 있는 Spring Security 전용 authentication 객체(UsernamePasswordAuthenticationToken) 생성

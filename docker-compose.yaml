@@ -24,6 +24,19 @@ services:
           cpus: "1.0"
           memory: 1GB
 
+  # MongoDB
+  mongodb:
+    image: mongo:latest
+    container_name: secondhand-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: password1234
+    volumes:
+      - ./mongodb/data:/data/db
+    restart: always
+
   # 캐시: Redis 7.0
   redis:
     image: redis:7.0
