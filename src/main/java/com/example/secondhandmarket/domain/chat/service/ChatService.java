@@ -5,8 +5,8 @@ import com.example.secondhandmarket.domain.chat.dto.response.ChatMessageResponse
 import com.example.secondhandmarket.domain.chat.dto.response.ChatRoomResponse;
 import com.example.secondhandmarket.domain.chat.entity.ChatMessage;
 import com.example.secondhandmarket.domain.chat.entity.ChatRoom;
-import com.example.secondhandmarket.domain.chat.repository.ChatMessageRepository;
-import com.example.secondhandmarket.domain.chat.repository.ChatRoomRepository;
+import com.example.secondhandmarket.domain.chat.repository.jpa.ChatRoomRepository;
+import com.example.secondhandmarket.domain.chat.repository.mongo.ChatMessageRepository;
 import com.example.secondhandmarket.domain.item.entity.Item;
 import com.example.secondhandmarket.domain.item.repository.ItemRepository;
 import com.example.secondhandmarket.domain.member.entity.Member;
@@ -22,7 +22,6 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Transactional(readOnly = true)
 public class ChatService {
 
     private final ChatRoomRepository chatRoomRepository;
@@ -32,7 +31,7 @@ public class ChatService {
     private final SimpMessagingTemplate messagingTemplate;
 
     /**
-     * 채팅방 생성 또는 기존 방 조회
+     * 채팅방 생성 또는 기존 방 조회 (MySQL - Transactional 필요)
      */
     @Transactional
     public Long createOrGetChatRoom(Long itemId, Long buyerId) {
@@ -49,7 +48,7 @@ public class ChatService {
     }
 
     /**
-     * 내 채팅방 목록 조회
+     * 내 채팅방 목록 조회 (MySQL - ReadOnly)
      */
     @Transactional(readOnly = true)
     public List<ChatRoomResponse> getMyChatRooms(Long memberId) {
@@ -59,7 +58,8 @@ public class ChatService {
     }
 
     /**
-     * 메시지 전송 (저장 및 브로드캐스팅)
+     * 메시지 전송 (MongoDB 저장 & WebSocket 전송)
+     * MongoDB는 JPA Transactional을 타지 않으므로 어노테이션 불필요 (필요 시 MongoTransactionManager 설정 해야함)
      */
     public void sendMessage(Long roomId, Long senderId, ChatMessageRequest request) {
         // 1. MongoDB 저장
@@ -77,9 +77,8 @@ public class ChatService {
     }
 
     /**
-     * 채팅 내역 조회
+     * 채팅 내역 조회 (MongoDB)
      */
-    @Transactional(readOnly = true)
     public List<ChatMessageResponse> getChatHistory(Long roomId) {
         return chatMessageRepository.findByChatRoomIdOrderByCreatedAtAsc(roomId).stream()
                 .map(ChatMessageResponse::from)

@@ -1,4 +1,4 @@
-package com.example.secondhandmarket.domain.chat.repository;
+package com.example.secondhandmarket.domain.chat.repository.mongo;
 
 import com.example.secondhandmarket.domain.chat.entity.ChatMessage;
 import org.springframework.data.mongodb.repository.MongoRepository;

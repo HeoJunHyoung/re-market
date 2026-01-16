@@ -5,16 +5,19 @@ import com.example.secondhandmarket.domain.chat.dto.response.ChatMessageResponse
 import com.example.secondhandmarket.domain.chat.service.ChatService;
 import com.example.secondhandmarket.global.security.principal.AuthMember;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.security.Principal;
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 public class ChatMessageController {
@@ -23,8 +26,15 @@ public class ChatMessageController {
 
     // WebSocket 메시지 전송
     @MessageMapping("/chat/message/{roomId}")
-    public void sendMessage(@DestinationVariable Long roomId, ChatMessageRequest request,
-                            @AuthenticationPrincipal AuthMember authMember) {
+    public void sendMessage(@DestinationVariable Long roomId, ChatMessageRequest request, Principal principal) {
+
+        // 1. Principal -> AuthMember 변환
+        UsernamePasswordAuthenticationToken auth = (UsernamePasswordAuthenticationToken) principal;
+        AuthMember authMember = (AuthMember) auth.getPrincipal();
+
+        log.info("채팅 전송 - 방: {}, 발신자: {}, 내용: {}", roomId, authMember.getMemberId(), request.getMessage());
+
+        // 2. 서비스 호출
         chatService.sendMessage(roomId, authMember.getMemberId(), request);
     }
 

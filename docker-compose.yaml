@@ -29,7 +29,7 @@ services:
     image: mongo:latest
     container_name: secondhand-mongodb
     ports:
-      - "27017:27017"
+      - "27019:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: password1234

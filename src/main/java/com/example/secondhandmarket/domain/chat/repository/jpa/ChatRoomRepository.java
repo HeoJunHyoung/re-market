@@ -1,4 +1,4 @@
-package com.example.secondhandmarket.domain.chat.repository;
+package com.example.secondhandmarket.domain.chat.repository.jpa;
 
 import com.example.secondhandmarket.domain.chat.entity.ChatRoom;
 import com.example.secondhandmarket.domain.item.entity.Item;

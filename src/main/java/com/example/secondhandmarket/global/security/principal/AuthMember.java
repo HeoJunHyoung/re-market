@@ -6,13 +6,14 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.security.Principal; // [중요] 추가
 import java.util.Collection;
 import java.util.List;
 
 @Getter
-public class AuthMember implements UserDetails {
+public class AuthMember implements UserDetails, Principal {
 
-    private Long memberId; // Member 객체의 AUTO INCREMENT값
+    private Long memberId;
     private String username;
     private String password;
     private Role role;
@@ -31,6 +32,13 @@ public class AuthMember implements UserDetails {
         this.role = role;
     }
 
+    // Principal의 메서드 구현
+    // WebSocket 세션 관리에서 식별자로 사용됨 (절대 null이면 안 됨)
+    @Override
+    public String getName() {
+        return String.valueOf(memberId);
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
@@ -43,6 +51,10 @@ public class AuthMember implements UserDetails {
 
     @Override
     public String getUsername() {
+        // JWT 인증 시 username이 null일 수 있으므로 안전하게 처리
+        if (this.username == null) {
+            return String.valueOf(memberId);
+        }
         return this.username;
     }
 
