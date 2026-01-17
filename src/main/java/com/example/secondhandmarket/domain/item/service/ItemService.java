@@ -16,6 +16,7 @@ import com.example.secondhandmarket.domain.member.entity.Member;
 import com.example.secondhandmarket.domain.member.exception.MemberErrorCode;
 import com.example.secondhandmarket.domain.member.repository.MemberRepository;
 import com.example.secondhandmarket.domain.trade.entity.Trade;
+import com.example.secondhandmarket.domain.trade.repository.TradeRepository;
 import com.example.secondhandmarket.global.error.BusinessException;
 import com.example.secondhandmarket.global.util.FileUtil;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class ItemService {
     private final ItemRepository itemRepository;
     private final MemberRepository memberRepository;
     private final FavoriteRepository favoriteRepository;
+    private final TradeRepository tradeRepository;
     private final FileUtil fileUtil;
 
     /**
@@ -106,7 +108,10 @@ public class ItemService {
             Member buyer = memberRepository.findById(request.getBuyerId())
                     .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
 
-            Trade.completeTrade(item, seller, buyer);
+            Trade trade = Trade.completeTrade(item, seller, buyer);
+            tradeRepository.save(trade);
+
+            item.changeStatus(newStatus);
 
         } else {
             // 판매중 / 예약중: 상태만 변경 (구매자 정보 초기화)
@@ -183,6 +188,29 @@ public class ItemService {
     public Slice<ItemListResponse> getMyFavoriteItems(Long memberId, Pageable pageable) {
         return favoriteRepository.findMyFavoriteItems(memberId, pageable)
                 .map(ItemListResponse::fromEntity);
+    }
+
+    /**
+     * 나의 판매 내역 조회
+     */
+    public Slice<ItemListResponse> getSalesHistory(Long memberId, String status, Pageable pageable) {
+
+        ItemStatus itemStatus = null;
+
+        if (status != null && !status.isBlank()) {
+            itemStatus = ItemStatus.valueOf(status.toUpperCase());
+        }
+
+        return itemRepository.findAllByMemberIdAndStatus(memberId, itemStatus, pageable)
+                .map(ItemListResponse::fromEntity);
+    }
+
+    /**
+     * 나의 구매 내역 조회
+     */
+    public Slice<ItemListResponse> getPurchaseHistory(Long memberId, Pageable pageable) {
+        return tradeRepository.findAllByBuyerIdOrderByCreatedAtDesc(memberId, pageable)
+                .map(trade -> ItemListResponse.fromEntity(trade.getItem()));
     }
 
 }

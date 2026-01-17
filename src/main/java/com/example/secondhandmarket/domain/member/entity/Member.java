@@ -1,6 +1,7 @@
 package com.example.secondhandmarket.domain.member.entity;
 
 import com.example.secondhandmarket.domain.member.entity.enumerate.Role;
+import com.example.secondhandmarket.domain.review.entity.enumerate.SafetyLevel;
 import com.example.secondhandmarket.global.common.BaseEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Max;
@@ -8,6 +9,8 @@ import jakarta.validation.constraints.Min;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "members")
@@ -40,6 +43,13 @@ public class Member extends BaseEntity {
     @Embedded
     private Address address;
 
+    // 일일 변화 제한을 위한 필드
+    private LocalDate lastScoreUpdateDate;
+    private Integer dailyIncrease = 0; // 오늘 오른 점수
+    private Integer dailyDecrease = 0; // 오늘 떨어진 점수
+    // 거래 횟수 (신규 계정 판단용)
+    private Integer tradeCount = 0;
+
     // == 생성자 == //
     protected Member() { }
 
@@ -48,7 +58,7 @@ public class Member extends BaseEntity {
         this.password = password;
         this.nickname = nickname;
         this.phoneNumber = phoneNumber;
-        this.safetyScore = 500;
+        this.safetyScore = 300;
         this.role = Role.USER;
     }
 
@@ -62,5 +72,53 @@ public class Member extends BaseEntity {
     // == 비즈니스 로직 == //
     public void updateAddress(Address address) {
         this.address = address;
+    }
+
+    // 점수 업데이트 로직
+    public void updateSafetyScore(int delta) {
+        checkAndResetDailyLimit(); // 날짜가 바뀌었으면 초기화
+
+        // 일일 제한 적용
+        int actualDelta = applyDailyLimit(delta);
+
+        // 최종 반영 (0 ~ 1000 Clamp)
+        this.safetyScore = Math.max(0, Math.min(1000, this.safetyScore + actualDelta));
+    }
+
+    private void checkAndResetDailyLimit() {
+        if (lastScoreUpdateDate == null || !lastScoreUpdateDate.equals(LocalDate.now())) {
+            this.lastScoreUpdateDate = LocalDate.now();
+            this.dailyIncrease = 0;
+            this.dailyDecrease = 0;
+        }
+    }
+
+    private int applyDailyLimit(int delta) {
+        if (delta > 0) {
+            // 상승 제한: 최대 +25
+            int availableRise = 25 - this.dailyIncrease;
+            int appliedRise = Math.min(delta, availableRise);
+            this.dailyIncrease += appliedRise;
+            return appliedRise;
+        } else {
+            // 하락 제한: 최대 -80 (delta는 음수)
+            int availableDrop = -80 - this.dailyDecrease; // 예: 0 - (-80)은 안됨.
+            // dailyDecrease는 음수로 누적
+            int limit = -80;
+            if (this.dailyDecrease <= limit) return 0; // 한계 도달
+
+            int appliedDrop = Math.max(delta, limit - this.dailyDecrease);
+            this.dailyDecrease += appliedDrop;
+            return appliedDrop;
+        }
+    }
+
+    public void incrementTradeCount() {
+        this.tradeCount++;
+    }
+
+    // UX용 레벨 반환
+    public SafetyLevel getSafetyLevel() {
+        return SafetyLevel.of(this.safetyScore);
     }
 }

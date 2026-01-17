@@ -97,4 +97,23 @@ public class ItemController {
         Slice<ItemListResponse> myFavoriteItems = itemService.getMyFavoriteItems(authMember.getMemberId(), pageable);
         return ResponseEntity.ok(myFavoriteItems);
     }
+
+    /**
+     * 나의 판매 내역 조회 API
+     */
+    @GetMapping("/my-sales")
+    public ResponseEntity<Slice<ItemListResponse>> getMySalesItems(@AuthenticationPrincipal AuthMember authMember,
+                                                                   @RequestParam(required = false) String status,
+                                                                   @PageableDefault(size = 20) Pageable pageable) {
+        Slice<ItemListResponse> responses = itemService.getSalesHistory(authMember.getMemberId(), status, pageable);
+        return ResponseEntity.ok(responses);
+    }
+
+    @GetMapping("/my-purchases")
+    public ResponseEntity<Slice<ItemListResponse>> getMyPurchaseItems(@AuthenticationPrincipal AuthMember authMember,
+                                                                      @PageableDefault(size = 20) Pageable pageable) {
+        Slice<ItemListResponse> responses = itemService.getPurchaseHistory(authMember.getMemberId(), pageable);
+        return ResponseEntity.ok(responses);
+    }
+
 }
