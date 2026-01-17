@@ -18,6 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -41,10 +42,17 @@ public class ItemController {
      * 상품 상태 변경 (판매중 / 예약중 / 거래완료)
      */
     @PatchMapping("/{itemId}/status")
-    public ResponseEntity<Void> updateItemStatus(@AuthenticationPrincipal AuthMember authMember,
+    public ResponseEntity<Map<String, Long>> updateItemStatus(@AuthenticationPrincipal AuthMember authMember,
                                                  @PathVariable Long itemId, @RequestBody ItemStatusUpdateRequest request) {
-        itemService.updateItemStatus(authMember.getMemberId(), itemId, request);
-        return ResponseEntity.ok().build();
+        Long tradeId = itemService.updateItemStatus(authMember.getMemberId(), itemId, request);
+
+        // tradeId가 있으면 JSON으로 반환 { "tradeId": 1 }
+        if (tradeId != null) {
+            return ResponseEntity.ok(Map.of("tradeId", tradeId));
+        } else {
+            return ResponseEntity.ok(Map.of());
+        }
+
     }
 
     /**

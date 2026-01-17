@@ -83,7 +83,7 @@ public class ItemService {
      * 상품 상태 변경
      */
     @Transactional
-    public void updateItemStatus(Long sellerId, Long itemId, ItemStatusUpdateRequest request) {
+    public Long updateItemStatus(Long sellerId, Long itemId, ItemStatusUpdateRequest request) {
 
         Item item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
@@ -113,9 +113,12 @@ public class ItemService {
 
             item.changeStatus(newStatus);
 
+            return trade.getId();
+
         } else {
             // 판매중 / 예약중: 상태만 변경 (구매자 정보 초기화)
             item.changeStatus(newStatus);
+            return null;
         }
     }
 
@@ -132,7 +135,7 @@ public class ItemService {
      */
     public Slice<ItemListResponse> getItemList(Pageable pageable) {
         return itemRepository.findLatestItems(pageable)
-                .map(ItemListResponse::fromEntity);
+                .map(item -> ItemListResponse.fromEntity(item, null));
     }
 
     /**
@@ -187,7 +190,7 @@ public class ItemService {
      */
     public Slice<ItemListResponse> getMyFavoriteItems(Long memberId, Pageable pageable) {
         return favoriteRepository.findMyFavoriteItems(memberId, pageable)
-                .map(ItemListResponse::fromEntity);
+                .map(item -> ItemListResponse.fromEntity(item, null));
     }
 
     /**
@@ -202,7 +205,7 @@ public class ItemService {
         }
 
         return itemRepository.findAllByMemberIdAndStatus(memberId, itemStatus, pageable)
-                .map(ItemListResponse::fromEntity);
+                .map(item -> ItemListResponse.fromEntity(item, null));
     }
 
     /**
@@ -210,7 +213,7 @@ public class ItemService {
      */
     public Slice<ItemListResponse> getPurchaseHistory(Long memberId, Pageable pageable) {
         return tradeRepository.findAllByBuyerIdOrderByCreatedAtDesc(memberId, pageable)
-                .map(trade -> ItemListResponse.fromEntity(trade.getItem()));
+                .map(trade -> ItemListResponse.fromEntity(trade.getItem(), trade.getId()));
     }
 
 }

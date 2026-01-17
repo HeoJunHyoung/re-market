@@ -27,7 +27,7 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
     @Query("""
         SELECT cr.buyer
         FROM ChatRoom cr
-        JOIN FETCH cr.buyer
+        JOIN cr.buyer
         WHERE cr.item.id = :itemId
     """)
     List<Member> findBuyersByItemId(@Param("itemId") Long itemId);

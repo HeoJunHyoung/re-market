@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 public class ItemListResponse {
 
     private Long itemId;
+    private Long tradeId;
     private String title;
     private String tradePlace;
     private Integer price;
@@ -26,7 +27,7 @@ public class ItemListResponse {
     private Integer favoriteCount;
     private LocalDateTime createdAt;
 
-    public static ItemListResponse fromEntity(Item item) {
+    public static ItemListResponse fromEntity(Item item, Long tradeId) {
 
         String thumbnailUrl = item.getItemImages().stream()
                 .filter(img -> Boolean.TRUE.equals(img.getIsRepresentative()))
@@ -36,6 +37,7 @@ public class ItemListResponse {
 
         return ItemListResponse.builder()
                 .itemId(item.getId())
+                .tradeId(tradeId)
                 .title(item.getTitle())
                 .tradePlace(item.getTradePlace())
                 .price(item.getPrice())
