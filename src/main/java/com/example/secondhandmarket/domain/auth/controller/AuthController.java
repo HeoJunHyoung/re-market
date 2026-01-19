@@ -30,7 +30,7 @@ public class AuthController {
     private final CookieUtil cookieUtil;
 
     @PostMapping("/code")
-    public ResponseEntity<Void> verify(@RequestBody SendCodeRequest request) {
+    public ResponseEntity<Void> sendCode(@RequestBody SendCodeRequest request) {
         authService.sendCode(request);
         return ResponseEntity.ok().build();
     }

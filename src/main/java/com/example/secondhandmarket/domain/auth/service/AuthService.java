@@ -86,7 +86,7 @@ public class AuthService {
         redisTemplate.delete(SMS_AUTH_PREFIX + request.getPhoneNumber());
         // 3.2. 인증 상태 키 저장
         redisTemplate.opsForValue()
-                .set(SMS_VERIFIED_PREFIX + request.getPhoneNumber(), "VERIFIED", Duration.ofMinutes(30));
+                .set(SMS_VERIFIED_PREFIX + request.getPhoneNumber(), "VERIFIED", Duration.ofMinutes(10));
     }
 
     /**
@@ -106,6 +106,8 @@ public class AuthService {
             // 인증을 안했거나 인증 유효 시간(30분)이 만료된 경우
             throw new BusinessException(AuthErrorCode.UNVERIFIED_PHONE_NUMBER);
         }
+        // Redis 값 초기화
+        redisTemplate.delete(SMS_VERIFIED_PREFIX + request.getPhoneNumber());
 
         // 4. 회원 저장 로직
         Member member = Member.ofLocal(
@@ -215,7 +217,7 @@ public class AuthService {
         StringBuilder stringBuilder = new StringBuilder(6);
 
         for (int i=0; i<6; i++) {
-            int index = ThreadLocalRandom.current().nextInt(CODE_CHARS.length());
+            int index = ThreadLocalRandom.current().nextInt(CODE_CHARS.length()); // Math.random() 혹은 Random()은 Race Condition 발생 가능
             stringBuilder.append(CODE_CHARS.charAt(index));
         }
 

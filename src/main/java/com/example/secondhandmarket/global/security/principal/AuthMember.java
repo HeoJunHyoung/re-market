@@ -51,7 +51,6 @@ public class AuthMember implements UserDetails, Principal {
 
     @Override
     public String getUsername() {
-        // JWT 인증 시 username이 null일 수 있으므로 안전하게 처리
         if (this.username == null) {
             return String.valueOf(memberId);
         }
