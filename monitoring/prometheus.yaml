@@ -7,7 +7,7 @@ scrape_configs:
   - job_name: 'spring-boot-app'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['host.docker.internal:8080'] # 로컬 IntelliJ에서 실행 중인 앱에 접속
+      - targets: ['host.docker.internal:8001'] # 로컬 IntelliJ에서 실행 중인 앱에 접속 : 앱의 server.port(8000)가 아닌 management.server.port(8001)를 바라봐야 함
 
   # Redis 지표 수집
   - job_name: 'redis'

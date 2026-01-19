@@ -45,6 +45,7 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    command: redis-server --requirepass 1234
     deploy:
       resources:
         limits:
@@ -55,7 +56,7 @@ services:
   redis_exporter:
     image: oliver006/redis_exporter
     container_name: secondhand-redis-exporter
-    command: ["--redis.addr=redis://redis:6379"]
+    command: ["--redis.addr=redis://:1234@redis:6379"]
     depends_on:
       - redis
     ports:
@@ -72,6 +73,8 @@ services:
     depends_on:
       - db
       - redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   # 시각화: Grafana
   grafana:
