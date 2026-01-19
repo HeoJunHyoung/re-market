@@ -1,6 +1,7 @@
 package com.example.secondhandmarket.domain.item.controller;
 
 import com.example.secondhandmarket.domain.item.dto.request.ItemCreateRequest;
+import com.example.secondhandmarket.domain.item.dto.request.ItemSearchCondition;
 import com.example.secondhandmarket.domain.item.dto.request.ItemStatusUpdateRequest;
 import com.example.secondhandmarket.domain.item.dto.response.ItemDetailsResponse;
 import com.example.secondhandmarket.domain.item.dto.response.ItemListResponse;
@@ -69,8 +70,8 @@ public class ItemController {
      * 상품 전체 조회
      */
     @GetMapping
-    public ResponseEntity<Slice<ItemListResponse>> getItemList(@PageableDefault(size = 20) Pageable pageable) {
-        Slice<ItemListResponse> itemListResponses = itemService.getItemList(pageable);
+    public ResponseEntity<Slice<ItemListResponse>> getItemList(@ModelAttribute ItemSearchCondition condition, @PageableDefault(size = 20) Pageable pageable) {
+        Slice<ItemListResponse> itemListResponses = itemService.getItemList(condition, pageable);
         return ResponseEntity.ok(itemListResponses);
     }
 

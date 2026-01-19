@@ -1,6 +1,7 @@
 package com.example.secondhandmarket.domain.item.service;
 
 import com.example.secondhandmarket.domain.item.dto.request.ItemCreateRequest;
+import com.example.secondhandmarket.domain.item.dto.request.ItemSearchCondition;
 import com.example.secondhandmarket.domain.item.dto.request.ItemStatusUpdateRequest;
 import com.example.secondhandmarket.domain.item.dto.response.ItemDetailsImageResponse;
 import com.example.secondhandmarket.domain.item.dto.response.ItemDetailsResponse;
@@ -133,8 +134,8 @@ public class ItemService {
     /**
      * 상품 목록 조회
      */
-    public Slice<ItemListResponse> getItemList(Pageable pageable) {
-        return itemRepository.findLatestItems(pageable)
+    public Slice<ItemListResponse> getItemList(ItemSearchCondition condition, Pageable pageable) {
+        return itemRepository.searchItems(condition, pageable)
                 .map(item -> ItemListResponse.fromEntity(item, null));
     }
 
