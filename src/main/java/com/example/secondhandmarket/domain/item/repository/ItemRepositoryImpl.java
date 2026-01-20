@@ -5,6 +5,7 @@ import com.example.secondhandmarket.domain.item.entity.Item;
 import com.example.secondhandmarket.domain.item.entity.QItem;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -41,7 +42,13 @@ public class ItemRepositoryImpl implements ItemRepositoryCustom{
     }
 
     private BooleanExpression titleContains(String title) {
-        return StringUtils.hasText(title) ? item.title.contains(title) : null;
+//        return StringUtils.hasText(title) ? item.title.contains(title) : null;
+        if (!StringUtils.hasText(title)) {
+            return null;
+        }
+        // MySQL의 MATCH AGAINST 구문을 사용하도록 템플릿 작성
+        return Expressions.numberTemplate(Double.class,
+                "function('match', {0}, {1})", item.title, title).gt(0);
     }
 
     private BooleanExpression priceGreaterThanOrEqual(Integer price) {
