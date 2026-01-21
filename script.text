@@ -1,1 +1,16 @@
 docker exec -it secondhand-db mysql -u secondhand_user -p --default-character-set=utf8mb4
+
+[1] 카테고리별 최신순 조회 최적화
+CREATE INDEX idx_items_category_created_at ON items (category, created_at DESC);
+
+[2] 판매 상태별 최신순 조회 최적화
+CREATE INDEX idx_items_status_created_at ON items (status, created_at DESC);
+
+[3] 가격 필터링 성능 향상
+CREATE INDEX idx_items_price ON items (price);
+
+[4] 전체 상품 최신순 정렬 전용
+CREATE INDEX idx_items_created_at ON items (created_at DESC);
+
+[5]
+ALTER TABLE items ADD FULLTEXT INDEX idx_title_fulltext (title) WITH PARSER ngram;

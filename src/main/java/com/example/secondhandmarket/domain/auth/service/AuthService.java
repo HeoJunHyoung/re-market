@@ -139,7 +139,7 @@ public class AuthService {
         redisTemplate.opsForValue()
                 .set("RT:" + authMember.getMemberId(), refreshToken, Duration.ofMillis(604800000));
 
-        return AuthResult.from(accessToken, refreshToken, authMember);
+        return AuthResult.of(accessToken, refreshToken, authMember);
     }
 
     /**

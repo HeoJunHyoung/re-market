@@ -14,7 +14,7 @@ public class AuthResult {
 
     private LoginResponse loginResponse;
 
-    public static AuthResult from(String accessToken, String refreshToken, AuthMember authMember) {
+    public static AuthResult of(String accessToken, String refreshToken, AuthMember authMember) {
         return AuthResult.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)

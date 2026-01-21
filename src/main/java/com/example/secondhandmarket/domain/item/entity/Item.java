@@ -11,7 +11,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "items")
+@Table(name = "items", indexes = {
+        // 1. 카테고리 + 최신순 정렬용 복합 인덱스
+        @Index(name = "idx_items_category_created_at", columnList = "category, created_at DESC"),
+
+        // 2. 판매상태 + 최신순 정렬용 복합 인덱스
+        @Index(name = "idx_items_status_created_at", columnList = "status, created_at DESC"),
+
+        // 3. 가격 검색용 단일 인덱스
+        @Index(name = "idx_items_price", columnList = "price"),
+
+        // 4. 전체 최신순 정렬용 인덱스
+        @Index(name = "idx_items_created_at", columnList = "created_at DESC")
+})
 @Getter
 public class Item extends BaseEntity {
 

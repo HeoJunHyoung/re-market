@@ -16,11 +16,25 @@ public class FileUtil {
     @Value("${file.dir}")
     private String fileDir;
 
-    public String getFullPath(String fileName) {
-        return fileDir + fileName;
+    /**
+     * 단일 파일 저장
+     */
+    public String storeFile(MultipartFile multipartFile) throws IOException {
+        if (multipartFile.isEmpty()) {
+            return null;
+        }
+
+        String originalFilename = multipartFile.getOriginalFilename();
+        String storeFileName = createStoreFileName(originalFilename);// UUID 변환
+
+        multipartFile.transferTo(new File(getFullPath(storeFileName)));
+
+        return storeFileName;
     }
 
-    // 여러 파일 저장
+    /**
+     * 여러 파일 저장
+     */
     public List<String> storeFiles(List<MultipartFile> multipartFiles) throws IOException {
         List<String> storeFileResult = new ArrayList<>();
 
@@ -36,19 +50,9 @@ public class FileUtil {
         return storeFileResult;
     }
 
-    // 단일 파일 저장
-    public String storeFile(MultipartFile multipartFile) throws IOException {
-        if (multipartFile.isEmpty()) {
-            return null;
-        }
-
-        String originalFilename = multipartFile.getOriginalFilename();
-        String storeFileName = createStoreFileName(originalFilename);// UUID 변환
-
-        multipartFile.transferTo(new File(getFullPath(storeFileName)));
-
-        return storeFileName;
-    }
+    /************************
+     **** 내부 헬퍼 메서드 ****
+     ***********************/
 
     // 파일명 중복 방지를 위해 UUID 사용
     private String createStoreFileName(String originalFilename) {
@@ -61,5 +65,10 @@ public class FileUtil {
     private String extractExt(String originalFilename) {
         int pos = originalFilename.lastIndexOf(".");
         return originalFilename.substring(pos + 1);
+    }
+
+    // 전체 경로 추출
+    public String getFullPath(String fileName) {
+        return fileDir + fileName; // "C:/images/" + UUID.확장자
     }
 }

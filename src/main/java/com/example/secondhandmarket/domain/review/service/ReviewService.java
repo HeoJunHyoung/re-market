@@ -87,7 +87,6 @@ public class ReviewService {
     }
 
     // --- 점수 계산 로직 ---
-
     private int calculateScoreDelta(Trade trade, Member reviewer, Member reviewee, Evaluation eval, ReviewTag tag) {
         // 1. 기본 점수 (SAFE +15, NORMAL 0, UNSAFE -30)
         int baseScore = eval.getScore();
