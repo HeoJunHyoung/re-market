@@ -2,10 +2,14 @@ package com.example.secondhandmarket.domain.review.dto.request;
 
 import com.example.secondhandmarket.domain.review.entity.enumerate.Evaluation;
 import com.example.secondhandmarket.domain.review.entity.enumerate.ReviewTag;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class ReviewCreateRequest {
     private Long tradeId;
     private Evaluation evaluation; // SAFE, NORMAL, UNSAFE
