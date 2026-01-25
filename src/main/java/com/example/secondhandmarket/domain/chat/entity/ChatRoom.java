@@ -2,13 +2,14 @@ package com.example.secondhandmarket.domain.chat.entity;
 
 import com.example.secondhandmarket.domain.item.entity.Item;
 import com.example.secondhandmarket.domain.member.entity.Member;
+import com.example.secondhandmarket.global.common.BaseEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
 
 @Entity
 @Table(name = "chat_rooms")
 @Getter
-public class ChatRoom {
+public class ChatRoom extends BaseEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "chat_room_id")

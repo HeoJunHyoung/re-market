@@ -56,7 +56,7 @@ public class ChatService {
     @Transactional(readOnly = true)
     public List<ChatRoomResponse> getMyChatRooms(Long memberId) {
         return chatRoomRepository.findMyChatRooms(memberId).stream()
-                .map(ChatRoomResponse::from)
+                .map(chatRoom -> ChatRoomResponse.from(chatRoom, memberId))
                 .toList();
     }
 
@@ -113,7 +113,7 @@ public class ChatService {
 
         // 해당 아이템으로 생성된 모든 채팅방 조회
         return chatRoomRepository.findAllByItemOrderByCreatedAtAsc(item).stream()
-                .map(ChatRoomResponse::from)
+                .map(chatRoom -> ChatRoomResponse.from(chatRoom, memberId))
                 .toList();
     }
 }

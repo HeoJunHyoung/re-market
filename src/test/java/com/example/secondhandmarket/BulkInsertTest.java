@@ -36,8 +36,9 @@ public class BulkInsertTest {
         int totalCount = 1_000_000;
         int batchSize = 5_000; // 배치 사이즈
 
-        String sql = "INSERT INTO items (seller_id, title, content, price, trade_place, status, category, view_count, chat_count, favorite_count, created_at, last_modified_at) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?)";
+        // [수정] item_type, stock_quantity 컬럼 추가
+        String sql = "INSERT INTO items (seller_id, title, content, price, trade_place, status, category, item_type, stock_quantity, view_count, chat_count, favorite_count, created_at, last_modified_at) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?)";
 
         // 카테고리 전체 목록 가져오기
         Category[] categories = Category.values();
@@ -66,10 +67,12 @@ public class BulkInsertTest {
                         content,
                         price,
                         tradePlace,
-                        "ON_SALE",
-                        category.name(),
-                        Timestamp.valueOf(LocalDateTime.now().minusMinutes(random.nextInt(100000))),
-                        Timestamp.valueOf(LocalDateTime.now())
+                        "ON_SALE",      // status
+                        category.name(), // category
+                        "SALE",         // [수정] item_type (일반 판매로 설정)
+                        1,              // [수정] stock_quantity (기본 재고 1개)
+                        Timestamp.valueOf(LocalDateTime.now().minusMinutes(random.nextInt(100000))), // created_at
+                        Timestamp.valueOf(LocalDateTime.now()) // last_modified_at
                 });
             }
 
@@ -141,4 +144,3 @@ public class BulkInsertTest {
         return districts[random.nextInt(districts.length)];
     }
 }
-

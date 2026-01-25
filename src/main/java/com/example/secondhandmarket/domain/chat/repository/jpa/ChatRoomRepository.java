@@ -18,10 +18,19 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
     List<ChatRoom> findAllByItemOrderByCreatedAtAsc(Item item);
 
+//    @Query("""
+//            SELECT cr
+//            FROM ChatRoom cr
+//            WHERE cr.buyer.id = :memberId OR cr.seller.id = :memberId
+//    """)
+//    List<ChatRoom> findMyChatRooms(@Param("memberId") Long memberId);
     @Query("""
             SELECT cr
             FROM ChatRoom cr
-            WHERE cr.buyer.id = :memberId OR cr.seller.id = :memberId
+            JOIN FETCH cr.item i     
+            JOIN FETCH cr.seller s   
+            JOIN FETCH cr.buyer b    
+            WHERE b.id = :memberId OR s.id = :memberId
     """)
     List<ChatRoom> findMyChatRooms(@Param("memberId") Long memberId);
 

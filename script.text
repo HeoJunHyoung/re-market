@@ -14,3 +14,7 @@ CREATE INDEX idx_items_created_at ON items (created_at DESC);
 
 [5]
 ALTER TABLE items ADD FULLTEXT INDEX idx_title_fulltext (title) WITH PARSER ngram;
+
+---
+[Grafana & Prometheus]
+Request 별 Query 수: `max by (path, http_method) (app_query_per_request_max{query_type="SELECT"})`
