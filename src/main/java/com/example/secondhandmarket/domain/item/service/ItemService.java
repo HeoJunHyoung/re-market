@@ -1,9 +1,10 @@
 package com.example.secondhandmarket.domain.item.service;
 
+import com.example.secondhandmarket.domain.chat.repository.jpa.ChatRoomRepository;
+import com.example.secondhandmarket.domain.chat.service.ChatService;
 import com.example.secondhandmarket.domain.item.dto.request.ItemCreateRequest;
 import com.example.secondhandmarket.domain.item.dto.request.ItemSearchCondition;
 import com.example.secondhandmarket.domain.item.dto.request.ItemStatusUpdateRequest;
-import com.example.secondhandmarket.domain.item.dto.response.ItemDetailsImageResponse;
 import com.example.secondhandmarket.domain.item.dto.response.ItemDetailsResponse;
 import com.example.secondhandmarket.domain.item.dto.response.ItemListResponse;
 import com.example.secondhandmarket.domain.item.entity.Favorite;
@@ -44,6 +45,8 @@ public class ItemService {
     private final FavoriteRepository favoriteRepository;
     private final TradeRepository tradeRepository;
     private final FileUtil fileUtil;
+    private final ChatService chatService;
+    private final ChatRoomRepository chatRoomRepository;
 
     /**
      * 상품 등록
@@ -227,6 +230,52 @@ public class ItemService {
     public Slice<ItemListResponse> getPurchaseHistory(Long memberId, Pageable pageable) {
         return tradeRepository.findAllByBuyerIdOrderByCreatedAtDesc(memberId, pageable)
                 .map(trade -> ItemListResponse.fromEntity(trade.getItem(), trade.getId()));
+    }
+
+    /**
+     * 나눔 받기 (선착순)
+     * 1. 중복 신청 체크
+     * 2. 재고 감소 (Atomic Update)
+     * 3. 채팅방 자동 생성
+     */
+    @Transactional
+    public Long requestSharing(Long itemId, Long buyerId) {
+
+        Member buyer = memberRepository.findById(buyerId)
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+        // 1. 아이템 검증
+        Item item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+
+        // 나눔 상품이 맞는지 확인
+        if (item.getItemType() != ItemType.SHARING) {
+            throw new BusinessException(ItemErrorCode.INVALID_ITEM_TYPE);
+        }
+
+        // 본인이 올린 나눔에 신청하는 것 방지
+        if (item.getMember().getId().equals(buyerId)) {
+            throw new BusinessException(ItemErrorCode.CANNOT_BUY_MY_ITEM);
+        }
+
+        // 2. 중복 신청 방지 (이미 채팅방이 있는지 확인)
+        if (chatRoomRepository.findByItemAndBuyer(item, buyer).isPresent()) {
+            throw new BusinessException(ItemErrorCode.ALREADY_REQUESTED);
+        }
+
+        // 3. 선착순 재고 감소 (핵심 로직)
+        // update 쿼리가 1을 반환하면 성공, 0이면 재고가 없다는 뜻
+        int updatedCount = itemRepository.decreaseStockAtomic(itemId);
+
+        if (updatedCount == 0) {
+            throw new BusinessException(ItemErrorCode.OUT_OF_STOCK); // "선착순 마감되었습니다."
+        }
+
+        // 4. 성공 시 채팅방 자동 생성
+        // ChatService의 createChatRoom 메서드 활용 (없다면 아래 참고하여 추가 필요)
+        Long chatRoomId = chatService.createOrGetChatRoom(itemId, buyerId);
+
+        return chatRoomId;
     }
 
 }

@@ -8,10 +8,12 @@ import com.example.secondhandmarket.domain.chat.entity.ChatRoom;
 import com.example.secondhandmarket.domain.chat.repository.jpa.ChatRoomRepository;
 import com.example.secondhandmarket.domain.chat.repository.mongo.ChatMessageRepository;
 import com.example.secondhandmarket.domain.item.entity.Item;
+import com.example.secondhandmarket.domain.item.exception.ItemErrorCode;
 import com.example.secondhandmarket.domain.item.repository.ItemRepository;
 import com.example.secondhandmarket.domain.member.dto.response.MemberResponse;
 import com.example.secondhandmarket.domain.member.entity.Member;
 import com.example.secondhandmarket.domain.member.repository.MemberRepository;
+import com.example.secondhandmarket.global.error.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -93,6 +95,25 @@ public class ChatService {
         List<Member> buyers = chatRoomRepository.findBuyersByItemId(itemId);
         return buyers.stream()
                 .map(MemberResponse::fromEntity)
+                .toList();
+    }
+
+    /**
+     * 특정 상품에 대한 채팅방 목록 조회 (판매자 확인 로직 포함)
+     */
+    @Transactional(readOnly = true)
+    public List<ChatRoomResponse> getChatRoomsByItem(Long itemId, Long memberId) {
+        Item item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+
+        // 요청자가 판매자인지 검증
+        if (!item.getMember().getId().equals(memberId)) {
+            throw new BusinessException(ItemErrorCode.NOT_ITEM_OWNER);
+        }
+
+        // 해당 아이템으로 생성된 모든 채팅방 조회
+        return chatRoomRepository.findAllByItemOrderByCreatedAtAsc(item).stream()
+                .map(ChatRoomResponse::from)
                 .toList();
     }
 }

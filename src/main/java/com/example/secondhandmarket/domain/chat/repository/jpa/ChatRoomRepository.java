@@ -12,7 +12,11 @@ import java.util.Optional;
 
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
+    List<ChatRoom> findAllByItem(Item item);
+
     Optional<ChatRoom> findByItemAndBuyer(Item item, Member buyer);
+
+    List<ChatRoom> findAllByItemOrderByCreatedAtAsc(Item item);
 
     @Query("""
             SELECT cr

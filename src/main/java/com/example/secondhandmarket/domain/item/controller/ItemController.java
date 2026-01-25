@@ -1,5 +1,7 @@
 package com.example.secondhandmarket.domain.item.controller;
 
+import com.example.secondhandmarket.domain.chat.dto.response.ChatRoomResponse;
+import com.example.secondhandmarket.domain.chat.service.ChatService;
 import com.example.secondhandmarket.domain.item.dto.request.ItemCreateRequest;
 import com.example.secondhandmarket.domain.item.dto.request.ItemSearchCondition;
 import com.example.secondhandmarket.domain.item.dto.request.ItemStatusUpdateRequest;
@@ -27,6 +29,7 @@ import java.util.Map;
 public class ItemController {
 
     private final ItemService itemService;
+    private final ChatService chatService;
 
     /**
      * 상품 등록
@@ -123,6 +126,23 @@ public class ItemController {
                                                                       @PageableDefault(size = 20) Pageable pageable) {
         Slice<ItemListResponse> responses = itemService.getPurchaseHistory(authMember.getMemberId(), pageable);
         return ResponseEntity.ok(responses);
+    }
+
+    @PostMapping("/{itemId}/share")
+    public ResponseEntity<Map<String, Long>> requestSharing(@AuthenticationPrincipal AuthMember authMember,
+                                                            @PathVariable Long itemId) {
+        // 서비스 호출 (재고 감소 -> 채팅방 생성)
+        Long chatRoomId = itemService.requestSharing(itemId, authMember.getMemberId());
+
+        // 생성된 채팅방 ID 반환 (프론트에서 바로 채팅방으로 이동하기 위함)
+        return ResponseEntity.ok(Map.of("chatRoomId", chatRoomId));
+    }
+
+    @GetMapping("/{itemId}/chats")
+    public ResponseEntity<List<ChatRoomResponse>> getItemChatRooms(@AuthenticationPrincipal AuthMember authMember,
+                                                                   @PathVariable Long itemId) {
+        List<ChatRoomResponse> chatRooms = chatService.getChatRoomsByItem(itemId, authMember.getMemberId());
+        return ResponseEntity.ok(chatRooms);
     }
 
 }
