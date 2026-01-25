@@ -6,6 +6,7 @@ import com.example.secondhandmarket.domain.auth.dto.request.SendCodeRequest;
 import com.example.secondhandmarket.domain.auth.dto.request.VerifyRequest;
 import com.example.secondhandmarket.domain.auth.dto.response.AuthResult;
 import com.example.secondhandmarket.domain.auth.exception.AuthErrorCode;
+import com.example.secondhandmarket.domain.auth.service.sms.AsyncSmsSender;
 import com.example.secondhandmarket.domain.auth.service.sms.SmsSender;
 import com.example.secondhandmarket.domain.member.entity.Member;
 import com.example.secondhandmarket.domain.member.exception.MemberErrorCode;
@@ -34,7 +35,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class AuthService {
 
     private final MemberRepository memberRepository;
-    private final SmsSender smsSender;
+    private final AsyncSmsSender asyncSmsSender;
     private final RedisTemplate<String, String> redisTemplate;
     private final BCryptPasswordEncoder bCryptPasswordEncoder;
     private final AuthenticationManager authenticationManager;
@@ -59,7 +60,7 @@ public class AuthService {
                 .set(SMS_AUTH_PREFIX+ request.getPhoneNumber(), code, Duration.ofMinutes(3));
 
         // 3. 발송 (현재는 Dev 환경이라서 단순 Log 출력)
-        smsSender.send(request.getPhoneNumber(), code);
+        asyncSmsSender.send(request.getPhoneNumber(), code);
     }
 
     /**

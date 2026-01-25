@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Component
 public class FileUtil {
@@ -24,6 +26,13 @@ public class FileUtil {
             return null;
         }
 
+        // 실제 S3 업로드 상황을 가정하여 0.5초 지연 추가
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
         String originalFilename = multipartFile.getOriginalFilename();
         String storeFileName = createStoreFileName(originalFilename);// UUID 변환
 
@@ -35,20 +44,47 @@ public class FileUtil {
     /**
      * 여러 파일 저장
      */
-    public List<String> storeFiles(List<MultipartFile> multipartFiles) throws IOException {
-        List<String> storeFileResult = new ArrayList<>();
+    // [1] 동기 방식
+//    public List<String> storeFiles(List<MultipartFile> multipartFiles) throws IOException {
+//        List<String> storeFileResult = new ArrayList<>();
+//
+//        if (multipartFiles == null || multipartFiles.isEmpty()) {
+//            return storeFileResult;
+//        }
+//
+//        for (MultipartFile multipartFile : multipartFiles) {
+//            if (!multipartFile.isEmpty()) {
+//                storeFileResult.add(storeFile(multipartFile));
+//            }
+//        }
+//        return storeFileResult;
+//    }
 
+    // [2] 비동기 방식
+    public List<String> storeFiles(List<MultipartFile> multipartFiles) {
         if (multipartFiles == null || multipartFiles.isEmpty()) {
-            return storeFileResult;
+            return new ArrayList<>();
         }
 
-        for (MultipartFile multipartFile : multipartFiles) {
-            if (!multipartFile.isEmpty()) {
-                storeFileResult.add(storeFile(multipartFile));
-            }
-        }
-        return storeFileResult;
+        // 1. 각 파일 저장을 비동기 Task로 변환하여 병렬 실행
+        List<CompletableFuture<String>> futures = multipartFiles.stream()
+                .filter(file -> !file.isEmpty())
+                .map(file -> CompletableFuture.supplyAsync(() -> {
+                    try {
+                        return storeFile(file);
+                    } catch (IOException e) {
+                        // 람다 내부에서는 체크 예외를 런타임 예외로 포장해야 함
+                        throw new RuntimeException(e);
+                    }
+                }))
+                .collect(Collectors.toList());
+
+        // 2. 모든 작업이 완료될 때까지 대기(join) 후 결과 수집
+        return futures.stream()
+                .map(CompletableFuture::join)
+                .collect(Collectors.toList());
     }
+
 
     /************************
      **** 내부 헬퍼 메서드 ****
