@@ -2,8 +2,11 @@ package com.example.secondhandmarket.domain.item.entity;
 
 import com.example.secondhandmarket.domain.item.entity.enumerate.Category;
 import com.example.secondhandmarket.domain.item.entity.enumerate.ItemStatus;
+import com.example.secondhandmarket.domain.item.entity.enumerate.ItemType;
+import com.example.secondhandmarket.domain.item.exception.ItemErrorCode;
 import com.example.secondhandmarket.domain.member.entity.Member;
 import com.example.secondhandmarket.global.common.BaseEntity;
+import com.example.secondhandmarket.global.error.BusinessException;
 import jakarta.persistence.*;
 import lombok.Getter;
 
@@ -67,10 +70,20 @@ public class Item extends BaseEntity {
     @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ItemImage> itemImages = new ArrayList<>();
 
+    private int stockQuantity; // 판매의 경우 기본값 1, 나눔일 경우 n
+
+    @Column(name = "item_type", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private ItemType itemType;
+
+    @Version
+    private Long version; // 낙관적 락을 위한 버전
+    
     // 생성자
     protected Item() { }
 
-    private Item(Member member, String title, String content, Integer price, String tradePlace, Category category) {
+    private Item(Member member, String title, String content, Integer price,
+                 String tradePlace, Category category, ItemType itemType, int stockQuantity) {
         this.member = member;
         this.title = title;
         this.content = content;
@@ -78,11 +91,17 @@ public class Item extends BaseEntity {
         this.tradePlace = tradePlace;
         this.category = category;
         this.status = ItemStatus.ON_SALE;
+
+        // [추가] 타입에 따른 검증 로직
+        this.itemType = itemType;
+        this.stockQuantity = stockQuantity;
     }
 
     public static Item createItem(Member member, String title, String content, Integer price,
-                                  String tradePlace, Category category, List<ItemImage> itemImages) {
-        Item item = new Item(member, title, content, price, tradePlace, category);
+                                  String tradePlace, Category category, List<ItemImage> itemImages,
+                                  ItemType itemType, int stockQuantity) {
+
+        Item item = new Item(member, title, content, price, tradePlace, category, itemType, stockQuantity);
 
         if (itemImages != null) {
             itemImages.forEach(item::addItemImage);
@@ -112,6 +131,13 @@ public class Item extends BaseEntity {
 
     public void changeStatus(ItemStatus status) {
         this.status = status;
+    }
+
+    public void decreaseStockQuantity() {
+        if (this.stockQuantity <= 0) {
+            throw new BusinessException(ItemErrorCode.OUT_OF_STOCK);
+        }
+        this.stockQuantity--;
     }
 
 }

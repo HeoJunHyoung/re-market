@@ -10,6 +10,7 @@ import com.example.secondhandmarket.domain.item.entity.Favorite;
 import com.example.secondhandmarket.domain.item.entity.Item;
 import com.example.secondhandmarket.domain.item.entity.ItemImage;
 import com.example.secondhandmarket.domain.item.entity.enumerate.ItemStatus;
+import com.example.secondhandmarket.domain.item.entity.enumerate.ItemType;
 import com.example.secondhandmarket.domain.item.exception.ItemErrorCode;
 import com.example.secondhandmarket.domain.item.repository.FavoriteRepository;
 import com.example.secondhandmarket.domain.item.repository.ItemRepository;
@@ -64,6 +65,15 @@ public class ItemService {
             }
         }
 
+        int stockQuantity = 1; // 기본값 (판매인 경우)
+
+        if (request.getItemType() == ItemType.SHARING) {
+            // 나눔인 경우: 요청받은 수량을 사용 (없거나 0 이하라면 1로 안전하게 처리 or 예외)
+            if (request.getStockQuantity() != null && request.getStockQuantity() > 0) {
+                stockQuantity = request.getStockQuantity();
+            }
+        }
+
         // 3. Item 객체 생성
         Item item = Item.createItem(
                 seller,
@@ -72,7 +82,9 @@ public class ItemService {
                 request.getPrice(),
                 request.getTradePlace(),
                 request.getCategory(),
-                itemImages
+                itemImages,
+                request.getItemType(),
+                stockQuantity
         );
 
         // 4. 저장
