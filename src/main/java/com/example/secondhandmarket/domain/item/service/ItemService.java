@@ -22,6 +22,8 @@ import com.example.secondhandmarket.domain.trade.entity.Trade;
 import com.example.secondhandmarket.domain.trade.repository.TradeRepository;
 import com.example.secondhandmarket.global.error.BusinessException;
 import com.example.secondhandmarket.global.util.FileUtil;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -39,6 +41,9 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 public class ItemService {
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     private final ItemRepository itemRepository;
     private final MemberRepository memberRepository;
@@ -182,6 +187,7 @@ public class ItemService {
     public void toggleFavorite(Long memberId, Long itemId) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+
         Item item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
 
@@ -190,18 +196,14 @@ public class ItemService {
                         favorite -> {
                             // 이미 있으면 관심 해제
                             favoriteRepository.delete(favorite);
-
-                            // Dirty Checking 대신 Atomic Query 사용
-                            //item.decreaseFavoriteCount();
+                            entityManager.detach(item);
                             itemRepository.decreaseFavoriteCount(itemId);
                         },
                         () -> {
                             // 없으면 관심 등록
                             Favorite favorite = Favorite.createFavorite(member, item);
                             favoriteRepository.save(favorite);
-
-                            // Dirty Checking 대신 Atomic Query 사용
-                            // item.increaseFavoriteCount();
+                            entityManager.detach(item);
                             itemRepository.increaseFavoriteCount(itemId);
                         }
                 );

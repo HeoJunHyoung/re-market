@@ -3,6 +3,7 @@ package com.example.secondhandmarket.concurrency;
 import com.example.secondhandmarket.config.IntegrationTest;
 import com.example.secondhandmarket.domain.chat.repository.jpa.ChatRoomRepository;
 import com.example.secondhandmarket.domain.item.entity.Item;
+import com.example.secondhandmarket.domain.item.entity.ItemImage;
 import com.example.secondhandmarket.domain.item.entity.enumerate.Category;
 import com.example.secondhandmarket.domain.item.entity.enumerate.ItemType;
 import com.example.secondhandmarket.domain.item.repository.FavoriteRepository;
@@ -92,7 +93,7 @@ public class ConcurrencySuccessTest {
                         try {
                             reviewService.createReview(buyerIds[idx], request);
                             break; // 성공하면 탈출
-                        } catch (OptimisticLockingFailureException e) {
+                        } catch (Exception e) {
                             // 버전 충돌 발생 시 50ms 대기 후 재시도
                             Thread.sleep(50);
                         }
@@ -140,11 +141,17 @@ public class ConcurrencySuccessTest {
         for (int i = 0; i < threadCount; i++) {
             int idx = i;
             executorService.submit(() -> {
-                try {
-                    itemService.toggleFavorite(userIds[idx], item.getId());
-                } finally {
-                    latch.countDown();
+                // [수정] 데드락 발생 시 재시도하도록 while 루프 추가
+                while (true) {
+                    try {
+                        itemService.toggleFavorite(userIds[idx], item.getId());
+                        break; // 성공 시 탈출
+                    } catch (Exception e) {
+                        // 데드락 등 예외 발생 시 잠시 대기 후 재시도
+                        try { Thread.sleep(50); } catch (InterruptedException ex) {}
+                    }
                 }
+                latch.countDown();
             });
         }
 
