@@ -76,8 +76,8 @@ public class Item extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private ItemType itemType;
 
-    @Version
-    private Long version; // 낙관적 락을 위한 버전
+//    @Version
+//    private Long version;
     
     // 생성자
     protected Item() { }

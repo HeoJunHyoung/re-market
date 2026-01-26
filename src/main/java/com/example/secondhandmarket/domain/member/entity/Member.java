@@ -50,6 +50,9 @@ public class Member extends BaseEntity {
     // 거래 횟수 (신규 계정 판단용)
     private Integer tradeCount = 0;
 
+    @Version
+    private Long version;
+
     // == 생성자 == //
     protected Member() { }
 

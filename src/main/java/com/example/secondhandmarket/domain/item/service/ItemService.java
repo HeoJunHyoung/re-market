@@ -190,13 +190,19 @@ public class ItemService {
                         favorite -> {
                             // 이미 있으면 관심 해제
                             favoriteRepository.delete(favorite);
-                            item.decreaseFavoriteCount();
+
+                            // Dirty Checking 대신 Atomic Query 사용
+                            //item.decreaseFavoriteCount();
+                            itemRepository.decreaseFavoriteCount(itemId);
                         },
                         () -> {
                             // 없으면 관심 등록
                             Favorite favorite = Favorite.createFavorite(member, item);
                             favoriteRepository.save(favorite);
-                            item.increaseFavoriteCount();
+
+                            // Dirty Checking 대신 Atomic Query 사용
+                            // item.increaseFavoriteCount();
+                            itemRepository.increaseFavoriteCount(itemId);
                         }
                 );
     }
@@ -245,7 +251,10 @@ public class ItemService {
                 .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
 
         // 1. 아이템 검증
-        Item item = itemRepository.findById(itemId)
+        // ㄴ 비관적 락을 걸고 아이템 조회 (이 시점에 다른 스레드는 대기 상태가 됨)
+        //Item item = itemRepository.findById(itemId)
+        //        .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+        Item item = itemRepository.findByIdWithPessimisticLock(itemId)
                 .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
 
         // 나눔 상품이 맞는지 확인

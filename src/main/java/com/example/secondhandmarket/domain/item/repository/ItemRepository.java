@@ -2,14 +2,17 @@ package com.example.secondhandmarket.domain.item.repository;
 
 import com.example.secondhandmarket.domain.item.entity.Item;
 import com.example.secondhandmarket.domain.item.entity.enumerate.ItemStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface ItemRepository extends JpaRepository<Item, Long>, ItemRepositoryCustom {
 
@@ -35,4 +38,20 @@ public interface ItemRepository extends JpaRepository<Item, Long>, ItemRepositor
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Item i SET i.stockQuantity = i.stockQuantity - 1 WHERE i.id = :itemId AND i.stockQuantity > 0")
     int decreaseStockAtomic(@Param("itemId") Long itemId);
+
+    // 관심 수 증가 (원자적 업데이트)
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Item i SET i.favoriteCount = i.favoriteCount + 1 WHERE i.id = :id")
+    void increaseFavoriteCount(@Param("id") Long id);
+
+    // 관심 수 감소 (원자적 업데이트)
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Item i SET i.favoriteCount = i.favoriteCount - 1 WHERE i.id = :id")
+    void decreaseFavoriteCount(@Param("id") Long id);
+
+    // 선착순 나눔 신청 목적: 비관적 락을 건 상태로 아이템 조회
+    // ㄴ 선착순 신청 시에는 조회 시점부터 다른 스레드가 건들지 못하게 막음
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT i FROM Item i WHERE i.id = :id")
+    Optional<Item> findByIdWithPessimisticLock(@Param("id") Long id);
 }
