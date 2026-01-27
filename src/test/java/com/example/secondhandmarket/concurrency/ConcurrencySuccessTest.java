@@ -159,7 +159,7 @@ public class ConcurrencySuccessTest {
 
         // then
         Item updatedItem = itemRepository.findById(item.getId()).orElseThrow();
-        System.out.println(">> 최종 좋아요 수: " + updatedItem.getFavoriteCount());
+        System.out.println(">> D 좋아요 수: " + updatedItem.getFavoriteCount());
 
         // 원자적 업데이트 덕분에 갱신 손실 없이 정확히 100이 되어야 함
         assertThat(updatedItem.getFavoriteCount()).isEqualTo(100);

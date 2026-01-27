@@ -28,11 +28,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,6 +55,11 @@ public class ItemService {
     private final FileUtil fileUtil;
     private final ChatService chatService;
     private final ChatRoomRepository chatRoomRepository;
+
+    private final RedisTemplate<String, Object> redisTemplate;
+
+    private static final String MAIN_PAGE_CACHE_KEY = "main:items:page:0";
+    private static final Duration CACHE_TTL = Duration.ofSeconds(5);
 
     /**
      * 상품 등록
@@ -155,8 +163,50 @@ public class ItemService {
      * 상품 목록 조회
      */
     public Slice<ItemListResponse> getItemList(ItemSearchCondition condition, Pageable pageable) {
-        return itemRepository.searchItems(condition, pageable)
+        // 1. 캐싱 대상 여부 확인 (검색 조건 x, 첫 페이지인 경우)
+        boolean isMainPage = isMainPageRequest(condition, pageable);
+
+        // 2. 메인 페이지인 경우, 캐시 조회
+        if (isMainPage) {
+            try {
+                List<ItemListResponse> cachedList = (List<ItemListResponse>) redisTemplate.opsForValue().get(MAIN_PAGE_CACHE_KEY);
+
+                if (cachedList != null) {
+                    log.debug("Cache Hit: Main Page Items");
+                    // Slice 객체 재구성 (메인 페이지는 데이터가 충분하다고 가정하고 hasNext=true 설정)
+                    return new SliceImpl<>(cachedList, pageable, true);
+                }
+            } catch (Exception e) {
+                log.error("Redis Get Failed: {}", e.getMessage());
+            }
+        }
+
+        // 3. 데이터 조회 (Cache Miss 또는 검색 요청인 경우)
+        Slice<ItemListResponse> result = itemRepository.searchItems(condition, pageable)
                 .map(item -> ItemListResponse.fromEntity(item, null));
+
+        // 4. 캐시 저장 (메인 페이지인 경우에만)
+        if (isMainPage && result.hasContent()) {
+            try {
+                // 전체 Slice 객체 대신 내용물(Content List)만 저장하여 직렬화 이슈 방지
+                redisTemplate.opsForValue().set(MAIN_PAGE_CACHE_KEY, result.getContent(), CACHE_TTL);
+            } catch (Exception e) {
+                log.error("Redis Set Failed: {}", e.getMessage());
+            }
+        }
+
+        return result;
+
+    }
+
+    // 상품 목록 조회 헬퍼 메서드
+    private boolean isMainPageRequest(ItemSearchCondition condition, Pageable pageable) {
+        if (condition == null) return pageable.getPageNumber() == 0;
+
+        return condition.getTitle() == null &&
+                condition.getMinPrice() == null &&
+                condition.getMaxPrice() == null &&
+                pageable.getPageNumber() == 0;
     }
 
     /**
