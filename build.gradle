@@ -36,6 +36,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
     runtimeOnly 'com.mysql:mysql-connector-j'
 
+    // --- Reddison (Distributed Lock) ---
+    implementation 'org.redisson:redisson-spring-boot-starter:3.43.0'
+
     // --- Querydsl ---
     implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
     annotationProcessor "com.querydsl:querydsl-apt:5.1.0:jakarta"

@@ -3,6 +3,9 @@ package com.example.secondhandmarket.global.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.redisson.Redisson;
+import org.redisson.api.RedissonClient;
+import org.redisson.config.Config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -39,6 +42,19 @@ public class RedisConfig {
         redisStandaloneConfiguration.setPassword(password);
 
         return new LettuceConnectionFactory(redisStandaloneConfiguration);
+    }
+
+    @Bean
+    public RedissonClient redissonClient() {
+        Config config = new Config();
+        // Redisson은 주소 앞에 "redis://"를 붙여야 합니다.
+        String redisAddress = "redis://" + host + ":" + port;
+
+        config.useSingleServer()
+                .setAddress(redisAddress)
+                .setPassword(password != null && !password.isBlank() ? password : null);
+
+        return Redisson.create(config);
     }
 
     // 1. RedisTemplate: 문자열 전용 (토큰 저장 등 단순 문자열 용도)

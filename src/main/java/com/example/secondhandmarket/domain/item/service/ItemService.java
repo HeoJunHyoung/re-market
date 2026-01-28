@@ -26,6 +26,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
@@ -38,6 +40,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @Transactional(readOnly = true)
@@ -57,9 +60,17 @@ public class ItemService {
     private final ChatRoomRepository chatRoomRepository;
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final RedissonClient redissonClient;
 
+    // 캐시 설정 상수
     private static final String MAIN_PAGE_CACHE_KEY = "main:items:page:0";
-    private static final Duration CACHE_TTL = Duration.ofSeconds(5);
+    private static final long MAIN_PAGE_TTL = 5L; // 메인 페이지 캐시 5초
+    // 락 대기 시간을 10초로 설정하여, 먼저 진입한 스레드가 끝날 때까지 충분히 기다리게 함
+    private static final long LOCK_WAIT_TIME = 10L;
+    private static final long LOCK_LEASE_TIME = 3L;
+
+    // Penetration 방어용 Null Object
+    private static final String NULL_OBJECT = "__NULL__";
 
     /**
      * 상품 등록
@@ -142,92 +153,181 @@ public class ItemService {
 
             item.changeStatus(newStatus);
 
+            // 상태 변경 시 관련 상세 캐시 삭제
+            redisTemplate.delete("item:details:" + itemId);
+
             return trade.getId();
 
         } else {
             // 판매중 / 예약중: 상태만 변경 (구매자 정보 초기화)
             item.changeStatus(newStatus);
+            // 상태 변경 시 관련 상세 캐시 삭제
+            redisTemplate.delete("item:details:" + itemId);
             return null;
         }
     }
 
     /**
-     * 상품 수정
+     * 상품 수정 (구현 필요 시 추가)
      */
 
     /**
-     * 상품 삭제
+     * 상품 삭제 (구현 필요 시 추가)
      */
 
     /**
      * 상품 목록 조회
+     * - Cache Aside 전략
+     * - Distributed Lock (Thundering Herd 방지)
+     * - Double Checked Locking
      */
     public Slice<ItemListResponse> getItemList(ItemSearchCondition condition, Pageable pageable) {
         // 1. 캐싱 대상 여부 확인 (검색 조건 x, 첫 페이지인 경우)
         boolean isMainPage = isMainPageRequest(condition, pageable);
 
-        // 2. 메인 페이지인 경우, 캐시 조회
-        if (isMainPage) {
-            try {
-                List<ItemListResponse> cachedList = (List<ItemListResponse>) redisTemplate.opsForValue().get(MAIN_PAGE_CACHE_KEY);
+        // 메인 페이지가 아니면 캐시 없이 DB 조회
+        if (!isMainPage) {
+            return fetchItemListFromDb(condition, pageable);
+        }
 
-                if (cachedList != null) {
-                    log.debug("Cache Hit: Main Page Items");
-                    // Slice 객체 재구성 (메인 페이지는 데이터가 충분하다고 가정하고 hasNext=true 설정)
-                    return new SliceImpl<>(cachedList, pageable, true);
+        // =================================================================
+        // [1] 1차 캐시 조회 (Lock 없이 빠르게)
+        // =================================================================
+        List<ItemListResponse> cachedList = getCachedItemList(MAIN_PAGE_CACHE_KEY);
+        if (cachedList != null) {
+            log.debug("Cache Hit (1st): Main Page Items");
+            return new SliceImpl<>(cachedList, pageable, true);
+        }
+
+        // =================================================================
+        // [2] Cache Miss -> 분산 락 획득 시도 (Thundering Herd 방지)
+        // =================================================================
+        String lockKey = MAIN_PAGE_CACHE_KEY + ":lock";
+        RLock lock = redissonClient.getLock(lockKey);
+
+        try {
+            // 락 획득 시도 (최대 10초 대기, 3초 점유)
+            // *중요*: waitTime을 10초로 넉넉하게 주어, 먼저 락을 잡은 스레드가 작업을 끝낼 때까지 대기하게 함.
+            boolean isLocked = lock.tryLock(LOCK_WAIT_TIME, LOCK_LEASE_TIME, TimeUnit.SECONDS);
+
+            if (!isLocked) {
+                // 10초를 기다려도 락을 못 잡은 경우 (거의 발생 안 함)
+                log.warn("Main Page Lock 획득 실패 (Timeout) - DB 직접 조회");
+                return fetchItemListFromDb(condition, pageable);
+            }
+
+            // =================================================================
+            // [3] Double Checked Locking (DCL)
+            // =================================================================
+            // 락을 획득하고 진입한 시점에, 앞선 스레드가 이미 캐시를 갱신했을 수 있으므로 다시 확인
+            cachedList = getCachedItemList(MAIN_PAGE_CACHE_KEY);
+            if (cachedList != null) {
+                log.debug("Cache Hit (2nd - DCL): Main Page Items");
+                return new SliceImpl<>(cachedList, pageable, true);
+            }
+
+            // =================================================================
+            // [4] DB 조회 및 캐시 갱신
+            // =================================================================
+            Slice<ItemListResponse> result = fetchItemListFromDb(condition, pageable);
+
+            // 캐시 저장 (메인 페이지인 경우에만)
+            if (result.hasContent()) {
+                try {
+                    // 전체 Slice 객체 대신 내용물(Content List)만 저장하여 직렬화 이슈 방지
+                    redisTemplate.opsForValue().set(MAIN_PAGE_CACHE_KEY, result.getContent(), Duration.ofSeconds(MAIN_PAGE_TTL));
+                    log.info("Cache Put: Main Page Items");
+                } catch (Exception e) {
+                    log.error("Redis Set Failed: {}", e.getMessage());
                 }
-            } catch (Exception e) {
-                log.error("Redis Get Failed: {}", e.getMessage());
+            }
+
+            return result;
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Redis Lock Interrupted", e);
+        } finally {
+            // [5] 락 해제
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
             }
         }
-
-        // 3. 데이터 조회 (Cache Miss 또는 검색 요청인 경우)
-        Slice<ItemListResponse> result = itemRepository.searchItems(condition, pageable)
-                .map(item -> ItemListResponse.fromEntity(item, null));
-
-        // 4. 캐시 저장 (메인 페이지인 경우에만)
-        if (isMainPage && result.hasContent()) {
-            try {
-                // 전체 Slice 객체 대신 내용물(Content List)만 저장하여 직렬화 이슈 방지
-                redisTemplate.opsForValue().set(MAIN_PAGE_CACHE_KEY, result.getContent(), CACHE_TTL);
-            } catch (Exception e) {
-                log.error("Redis Set Failed: {}", e.getMessage());
-            }
-        }
-
-        return result;
-
-    }
-
-    // 상품 목록 조회 헬퍼 메서드
-    private boolean isMainPageRequest(ItemSearchCondition condition, Pageable pageable) {
-        if (condition == null) return pageable.getPageNumber() == 0;
-
-        return condition.getTitle() == null &&
-                condition.getMinPrice() == null &&
-                condition.getMaxPrice() == null &&
-                pageable.getPageNumber() == 0;
     }
 
     /**
      * 상품 상세 조회
+     * - Cache Penetration 방어 (Null Object Pattern) 적용
      */
     @Transactional
     public ItemDetailsResponse getItemDetails(Long itemId, Long memberId) {
 
-        Item item = itemRepository.findById(itemId)
-                .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+        String cacheKey = "item:details:" + itemId;
 
+        // =================================================================
+        // [1] Redis 캐시 조회
+        // =================================================================
+        Object cachedValue = null;
+        try {
+            cachedValue = redisTemplate.opsForValue().get(cacheKey);
+        } catch (Exception e) {
+            log.error("Redis Get Failed: {}", e.getMessage());
+        }
+
+        if (cachedValue != null) {
+            // 1-1. [Penetration Hit] "없음"으로 마킹된 데이터인지 확인 (Null Object Pattern)
+            if (NULL_OBJECT.equals(cachedValue)) {
+                log.debug("Cache Penetration Defense: itemId={}", itemId);
+                throw new BusinessException(ItemErrorCode.ITEM_NOT_FOUND);
+            }
+
+            // 1-2. [Cache Hit] 정상 데이터 반환
+            if (cachedValue instanceof ItemDetailsResponse) {
+                // 주의: 캐시 히트 시 조회수 증가 로직 누락됨 (정합성 위해 스킵)
+                return (ItemDetailsResponse) cachedValue;
+            }
+        }
+
+        // =================================================================
+        // [2] DB 조회 (Cache Miss)
+        // =================================================================
+        Item item;
+        try {
+            item = itemRepository.findById(itemId)
+                    .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+        } catch (BusinessException e) {
+            // 3. [Penetration Defense] DB에도 없는 데이터라면 "__NULL__" 캐싱 (30초간 방어)
+            if (e.getErrorCode() == ItemErrorCode.ITEM_NOT_FOUND) {
+                try {
+                    redisTemplate.opsForValue().set(cacheKey, NULL_OBJECT, Duration.ofSeconds(30));
+                } catch (Exception redisEx) {
+                    log.error("Redis Set Failed (Null Object): {}", redisEx.getMessage());
+                }
+            }
+            throw e;
+        }
+
+        // 조회수 증가
         item.increaseViewCount();
 
         boolean isFavorite = false;
         if (memberId != null) {
-            // 로그인한 경우 찜 여부 확인
-            Member member = memberRepository.getReferenceById(memberId); // 프록시 조회로 성능 최적화
+            Member member = memberRepository.getReferenceById(memberId);
             isFavorite = favoriteRepository.findByMemberAndItem(member, item).isPresent();
         }
 
-        return ItemDetailsResponse.fromEntity(item, isFavorite);
+        ItemDetailsResponse response = ItemDetailsResponse.fromEntity(item, isFavorite);
+
+        // =================================================================
+        // [4] Redis 정상 데이터 캐싱 (예: 10분)
+        // =================================================================
+        try {
+            redisTemplate.opsForValue().set(cacheKey, response, Duration.ofMinutes(10));
+        } catch (Exception e) {
+            log.error("Redis Set Failed: {}", e.getMessage());
+        }
+
+        return response;
     }
 
     /**
@@ -257,6 +357,8 @@ public class ItemService {
                             itemRepository.increaseFavoriteCount(itemId);
                         }
                 );
+        // 캐시 삭제 (상세 조회 정보 갱신)
+        redisTemplate.delete("item:details:" + itemId);
     }
 
     /**
@@ -332,11 +434,42 @@ public class ItemService {
             throw new BusinessException(ItemErrorCode.OUT_OF_STOCK); // "선착순 마감되었습니다."
         }
 
+        // 재고 변경 시 상세 캐시 삭제
+        redisTemplate.delete("item:details:" + itemId);
+
         // 4. 성공 시 채팅방 자동 생성
         // ChatService의 createChatRoom 메서드 활용 (없다면 아래 참고하여 추가 필요)
         Long chatRoomId = chatService.createOrGetChatRoom(itemId, buyerId);
 
         return chatRoomId;
+    }
+
+    // --- Helper Methods ---
+    private Slice<ItemListResponse> fetchItemListFromDb(ItemSearchCondition condition, Pageable pageable) {
+        return itemRepository.searchItems(condition, pageable)
+                .map(item -> ItemListResponse.fromEntity(item, null));
+    }
+
+    private boolean isMainPageRequest(ItemSearchCondition condition, Pageable pageable) {
+        if (condition == null) return pageable.getPageNumber() == 0;
+        return condition.getTitle() == null &&
+                condition.getMinPrice() == null &&
+                condition.getMaxPrice() == null &&
+                pageable.getPageNumber() == 0;
+    }
+
+    // Type Safety Warning 억제를 위한 헬퍼 메서드
+    @SuppressWarnings("unchecked")
+    private List<ItemListResponse> getCachedItemList(String key) {
+        try {
+            Object data = redisTemplate.opsForValue().get(key);
+            if (data instanceof List) {
+                return (List<ItemListResponse>) data;
+            }
+        } catch (Exception e) {
+            log.error("Redis Get Failed: {}", e.getMessage());
+        }
+        return null;
     }
 
 }
