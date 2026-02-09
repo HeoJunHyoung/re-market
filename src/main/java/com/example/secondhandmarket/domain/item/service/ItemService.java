@@ -22,12 +22,13 @@ import com.example.secondhandmarket.domain.trade.entity.Trade;
 import com.example.secondhandmarket.domain.trade.repository.TradeRepository;
 import com.example.secondhandmarket.global.error.BusinessException;
 import com.example.secondhandmarket.global.util.FileUtil;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.redisson.api.RLock;
-import org.redisson.api.RedissonClient;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
@@ -40,7 +41,6 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 @Service
 @Transactional(readOnly = true)
@@ -60,17 +60,16 @@ public class ItemService {
     private final ChatRoomRepository chatRoomRepository;
 
     private final RedisTemplate<String, Object> redisTemplate;
-    private final RedissonClient redissonClient;
+    private final MeterRegistry meterRegistry;
 
     // 캐시 설정 상수
     private static final String MAIN_PAGE_CACHE_KEY = "main:items:page:0";
     private static final long MAIN_PAGE_TTL = 5L; // 메인 페이지 캐시 5초
     // 락 대기 시간을 10초로 설정하여, 먼저 진입한 스레드가 끝날 때까지 충분히 기다리게 함
-    private static final long LOCK_WAIT_TIME = 10L;
-    private static final long LOCK_LEASE_TIME = 3L;
 
     // Penetration 방어용 Null Object
     private static final String NULL_OBJECT = "__NULL__";
+
 
     /**
      * 상품 등록
@@ -117,6 +116,14 @@ public class ItemService {
         // 4. 저장
         itemRepository.save(item);
 
+        // [모니터링]
+        Counter.builder("business.item.registered")    // 1. 측정기 이름 정하기
+                .tag("category", request.getCategory().name()) // 2. 카테고리 태그 붙이기 (전자제품, 의류...)
+                .tag("type", request.getItemType().name())     // 3. 타입 태그 붙이기 (판매, 나눔)
+                .description("신규 상품 등록 수")
+                .register(meterRegistry)               // 4. 장부에 등록하기
+                .increment();                          // 5. 숫자 1 올리기
+
     }
 
     /**
@@ -155,6 +162,19 @@ public class ItemService {
 
             // 상태 변경 시 관련 상세 캐시 삭제
             redisTemplate.delete("item:details:" + itemId);
+
+            // [모니터링] 거래 완료 횟수 및 금액 합계
+            Counter.builder("business.trade.completed")
+                    .description("거래 완료(판매 성사) 횟수")
+                    .register(meterRegistry)
+                    .increment();
+
+            // [모니터링] 판매 금액 누적 (매출액 파악용)
+            Counter.builder("business.trade.amount")
+                    .baseUnit("KRW")
+                    .description("총 거래 완료 금액")
+                    .register(meterRegistry)
+                    .increment(item.getPrice()); // 1 대신 판매 가격만큼 올림
 
             return trade.getId();
 
@@ -200,59 +220,22 @@ public class ItemService {
         }
 
         // =================================================================
-        // [2] Cache Miss -> 분산 락 획득 시도 (Thundering Herd 방지)
+        // [4] DB 조회 및 캐시 갱신
         // =================================================================
-        String lockKey = MAIN_PAGE_CACHE_KEY + ":lock";
-        RLock lock = redissonClient.getLock(lockKey);
+        Slice<ItemListResponse> result = fetchItemListFromDb(condition, pageable);
 
-        try {
-            // 락 획득 시도 (최대 10초 대기, 3초 점유)
-            // *중요*: waitTime을 10초로 넉넉하게 주어, 먼저 락을 잡은 스레드가 작업을 끝낼 때까지 대기하게 함.
-            boolean isLocked = lock.tryLock(LOCK_WAIT_TIME, LOCK_LEASE_TIME, TimeUnit.SECONDS);
-
-            if (!isLocked) {
-                // 10초를 기다려도 락을 못 잡은 경우 (거의 발생 안 함)
-                log.warn("Main Page Lock 획득 실패 (Timeout) - DB 직접 조회");
-                return fetchItemListFromDb(condition, pageable);
-            }
-
-            // =================================================================
-            // [3] Double Checked Locking (DCL)
-            // =================================================================
-            // 락을 획득하고 진입한 시점에, 앞선 스레드가 이미 캐시를 갱신했을 수 있으므로 다시 확인
-            cachedList = getCachedItemList(MAIN_PAGE_CACHE_KEY);
-            if (cachedList != null) {
-                log.debug("Cache Hit (2nd - DCL): Main Page Items");
-                return new SliceImpl<>(cachedList, pageable, true);
-            }
-
-            // =================================================================
-            // [4] DB 조회 및 캐시 갱신
-            // =================================================================
-            Slice<ItemListResponse> result = fetchItemListFromDb(condition, pageable);
-
-            // 캐시 저장 (메인 페이지인 경우에만)
-            if (result.hasContent()) {
-                try {
-                    // 전체 Slice 객체 대신 내용물(Content List)만 저장하여 직렬화 이슈 방지
-                    redisTemplate.opsForValue().set(MAIN_PAGE_CACHE_KEY, result.getContent(), Duration.ofSeconds(MAIN_PAGE_TTL));
-                    log.info("Cache Put: Main Page Items");
-                } catch (Exception e) {
-                    log.error("Redis Set Failed: {}", e.getMessage());
-                }
-            }
-
-            return result;
-
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Redis Lock Interrupted", e);
-        } finally {
-            // [5] 락 해제
-            if (lock.isHeldByCurrentThread()) {
-                lock.unlock();
+        // 캐시 저장 (메인 페이지인 경우에만)
+        if (result.hasContent()) {
+            try {
+                // 전체 Slice 객체 대신 내용물(Content List)만 저장하여 직렬화 이슈 방지
+                redisTemplate.opsForValue().set(MAIN_PAGE_CACHE_KEY, result.getContent(), Duration.ofSeconds(MAIN_PAGE_TTL));
+                log.info("Cache Put: Main Page Items");
+            } catch (Exception e) {
+                log.error("Redis Set Failed: {}", e.getMessage());
             }
         }
+
+        return result;
     }
 
     /**
@@ -401,47 +384,60 @@ public class ItemService {
     @Transactional
     public Long requestSharing(Long itemId, Long buyerId) {
 
-        Member buyer = memberRepository.findById(buyerId)
-                .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+        // [모니터링] 1. 스톱워치 시작
+        Timer.Sample sample = Timer.start(meterRegistry);
+        String resultTag = "FAIL"; // 기본값은 '실패'로 설정
 
-        // 1. 아이템 검증
-        // ㄴ 비관적 락을 걸고 아이템 조회 (이 시점에 다른 스레드는 대기 상태가 됨)
-        //Item item = itemRepository.findById(itemId)
-        //        .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
-        Item item = itemRepository.findByIdWithPessimisticLock(itemId)
-                .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+        try {
+            // ----------------- 기존 비즈니스 로직 시작 -----------------
+            Member buyer = memberRepository.findById(buyerId)
+                    .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
 
-        // 나눔 상품이 맞는지 확인
-        if (item.getItemType() != ItemType.SHARING) {
-            throw new BusinessException(ItemErrorCode.INVALID_ITEM_TYPE);
+            // 1. 아이템 검증 (비관적 락)
+            Item item = itemRepository.findByIdWithPessimisticLock(itemId)
+                    .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+
+            // 나눔 상품이 맞는지 확인
+            if (item.getItemType() != ItemType.SHARING) {
+                throw new BusinessException(ItemErrorCode.INVALID_ITEM_TYPE);
+            }
+
+            // 본인이 올린 나눔에 신청하는 것 방지
+            if (item.getMember().getId().equals(buyerId)) {
+                throw new BusinessException(ItemErrorCode.CANNOT_BUY_MY_ITEM);
+            }
+
+            // 2. 중복 신청 방지
+            if (chatRoomRepository.findByItemAndBuyer(item, buyer).isPresent()) {
+                throw new BusinessException(ItemErrorCode.ALREADY_REQUESTED);
+            }
+
+            // 3. 선착순 재고 감소 (핵심 로직)
+            int updatedCount = itemRepository.decreaseStockAtomic(itemId);
+
+            if (updatedCount == 0) {
+                throw new BusinessException(ItemErrorCode.OUT_OF_STOCK);
+            }
+
+            // 재고 변경 시 상세 캐시 삭제
+            redisTemplate.delete("item:details:" + itemId);
+
+            // 4. 성공 시 채팅방 자동 생성
+            Long chatRoomId = chatService.createOrGetChatRoom(itemId, buyerId);
+
+            // 여기까지 오면 성공! 태그를 변경
+            resultTag = "SUCCESS";
+
+            return chatRoomId;
+            // ----------------- 기존 비즈니스 로직 끝 -----------------
+
+        } finally {
+            // [모니터링] 2. 로직이 끝나면(성공이든 에러든) 무조건 기록
+            sample.stop(Timer.builder("business.sharing.request")
+                    .tag("result", resultTag) // 성공/실패 여부 기록
+                    .description("나눔 선착순 신청 처리 시간")
+                    .register(meterRegistry));
         }
-
-        // 본인이 올린 나눔에 신청하는 것 방지
-        if (item.getMember().getId().equals(buyerId)) {
-            throw new BusinessException(ItemErrorCode.CANNOT_BUY_MY_ITEM);
-        }
-
-        // 2. 중복 신청 방지 (이미 채팅방이 있는지 확인)
-        if (chatRoomRepository.findByItemAndBuyer(item, buyer).isPresent()) {
-            throw new BusinessException(ItemErrorCode.ALREADY_REQUESTED);
-        }
-
-        // 3. 선착순 재고 감소 (핵심 로직)
-        // update 쿼리가 1을 반환하면 성공, 0이면 재고가 없다는 뜻
-        int updatedCount = itemRepository.decreaseStockAtomic(itemId);
-
-        if (updatedCount == 0) {
-            throw new BusinessException(ItemErrorCode.OUT_OF_STOCK); // "선착순 마감되었습니다."
-        }
-
-        // 재고 변경 시 상세 캐시 삭제
-        redisTemplate.delete("item:details:" + itemId);
-
-        // 4. 성공 시 채팅방 자동 생성
-        // ChatService의 createChatRoom 메서드 활용 (없다면 아래 참고하여 추가 필요)
-        Long chatRoomId = chatService.createOrGetChatRoom(itemId, buyerId);
-
-        return chatRoomId;
     }
 
     // --- Helper Methods ---
