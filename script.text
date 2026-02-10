@@ -1,4 +1,4 @@
-docker exec -it secondhand-db mysql -u secondhand_user -p --default-character-set=utf8mb4
+docker exec -it remarket-db mysql -u remarket_user -p --default-character-set=utf8mb4
 
 [1] 카테고리별 최신순 조회 최적화
 CREATE INDEX idx_items_category_created_at ON items (category, created_at DESC);

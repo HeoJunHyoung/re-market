@@ -3,10 +3,10 @@ services:
   # 데이터베이스: MySQL 8.0
   db:
     image: mysql:8.0
-    container_name: secondhand-db
+    container_name: remarket-db
     environment:
-      MYSQL_DATABASE: secondhand
-      MYSQL_USER: secondhand_user
+      MYSQL_DATABASE: remarket
+      MYSQL_USER: remarket_user
       MYSQL_PASSWORD: password1234
       MYSQL_ROOT_PASSWORD: password1234
     ports:
@@ -14,7 +14,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "secondhand_user", "--password=password1234" ]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "remarket_user", "--password=password1234" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -27,7 +27,7 @@ services:
   # MongoDB
   mongodb:
     image: mongo:latest
-    container_name: secondhand-mongodb
+    container_name: remarket-mongodb
     ports:
       - "27019:27017"
     environment:
@@ -40,7 +40,7 @@ services:
   # 캐시: Redis 7.0
   redis:
     image: redis:7.0
-    container_name: secondhand-redis
+    container_name: remarket-redis
     ports:
       - "6379:6379"
     volumes:
@@ -55,7 +55,7 @@ services:
   # Redis 지표 수집기: Redis Exporter
   redis_exporter:
     image: oliver006/redis_exporter
-    container_name: secondhand-redis-exporter
+    container_name: remarket-redis-exporter
     command: ["--redis.addr=redis://:1234@redis:6379"]
     depends_on:
       - redis
@@ -65,7 +65,7 @@ services:
   # 모니터링: Prometheus
   prometheus:
     image: prom/prometheus:latest
-    container_name: secondhand-prometheus
+    container_name: remarket-prometheus
     volumes:
       - ./monitoring/prometheus.yaml:/etc/prometheus/prometheus.yml
     ports:
@@ -79,7 +79,7 @@ services:
   # 시각화: Grafana
   grafana:
     image: grafana/grafana:latest
-    container_name: secondhand-grafana
+    container_name: remarket-grafana
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
