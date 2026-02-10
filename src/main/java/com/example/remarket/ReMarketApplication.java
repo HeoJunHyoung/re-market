@@ -8,10 +8,10 @@ import org.springframework.web.socket.config.annotation.EnableWebSocket;
 @SpringBootApplication
 @EnableWebSocket
 @EnableJpaAuditing
-public class SecondhandMarketApplication {
+public class ReMarketApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(SecondhandMarketApplication.class, args);
+        SpringApplication.run(ReMarketApplication.class, args);
     }
 
 }
