@@ -2,6 +2,7 @@ package com.example.remarket.domain.item.repository;
 
 import com.example.remarket.domain.item.entity.Item;
 import com.example.remarket.domain.item.dto.request.ItemSearchCondition;
+import com.example.remarket.domain.item.entity.enumerate.ItemStatus;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
@@ -39,7 +40,8 @@ public class ItemRepositoryImpl implements ItemRepositoryCustom{
                 .where(
                         titleMatches(matchScore), // 수정된 메서드 사용
                         priceGreaterThanOrEqual(condition.getMinPrice()),
-                        priceLowerThanOrEqual(condition.getMaxPrice())
+                        priceLowerThanOrEqual(condition.getMaxPrice()),
+                        statusEq(condition.getStatus())
                 )
                 .orderBy(
                         // 검색어가 있으면 정확도순 정렬 우선, 그 다음 기존 정렬 조건
@@ -71,6 +73,10 @@ public class ItemRepositoryImpl implements ItemRepositoryCustom{
 
     private BooleanExpression priceLowerThanOrEqual(Integer price) {
         return price != null ? item.price.loe(price) : null;
+    }
+
+    private BooleanExpression statusEq(ItemStatus status) {
+        return status != null ? item.status.eq(status) : null;
     }
 
     // 정렬 로직 수정

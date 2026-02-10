@@ -1,5 +1,6 @@
 package com.example.remarket.domain.member.dto.response;
 
+import com.example.remarket.domain.member.entity.Address; // Address 임포트 필요
 import com.example.remarket.domain.member.entity.Member;
 import lombok.Builder;
 import lombok.Data;
@@ -12,6 +13,8 @@ public class MemberResponse {
     private String username;
     private String nickname;
     private String role;
+    private Integer safetyScore;
+    private Address address;
 
     public static MemberResponse fromEntity(Member member) {
         return MemberResponse.builder()
@@ -19,6 +22,8 @@ public class MemberResponse {
                 .username(member.getUsername())
                 .nickname(member.getNickname())
                 .role(String.valueOf(member.getRole()))
+                .safetyScore(member.getSafetyScore())
+                .address(member.getAddress())
                 .build();
     }
 }

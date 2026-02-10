@@ -117,22 +117,26 @@ public class Item extends BaseEntity {
 
     // 비즈니스 로직
 
+    public void updateItem(String title, String content, Integer price, String tradePlace, Category category) {
+        this.title = title;
+        this.content = content;
+        this.price = price;
+        this.tradePlace = tradePlace;
+        this.category = category;
+    }
+
     public void increaseViewCount() {
         this.viewCount++;
     }
-
     public void increaseFavoriteCount() {
         this.favoriteCount ++;
     }
-
     public void decreaseFavoriteCount() {
         this.favoriteCount --;
     }
-
     public void changeStatus(ItemStatus status) {
         this.status = status;
     }
-
     public void decreaseStockQuantity() {
         if (this.stockQuantity <= 0) {
             throw new BusinessException(ItemErrorCode.OUT_OF_STOCK);

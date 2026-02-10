@@ -5,6 +5,7 @@ import com.example.remarket.domain.chat.service.ChatService;
 import com.example.remarket.domain.item.dto.request.ItemCreateRequest;
 import com.example.remarket.domain.item.dto.request.ItemSearchCondition;
 import com.example.remarket.domain.item.dto.request.ItemStatusUpdateRequest;
+import com.example.remarket.domain.item.dto.request.ItemUpdateRequest;
 import com.example.remarket.domain.item.dto.response.ItemDetailsResponse;
 import com.example.remarket.domain.item.dto.response.ItemListResponse;
 import com.example.remarket.domain.item.service.ItemService;
@@ -61,12 +62,29 @@ public class ItemController {
 
     /**
      * 상품 수정
+     * - RequestPart 'data': 수정할 텍스트 정보 + 삭제할 이미지 ID 목록
+     * - RequestPart 'newImages': 새로 추가할 이미지 파일들
      */
+    @PutMapping("/{itemId}")
+    public ResponseEntity<Void> updateItem(@AuthenticationPrincipal AuthMember authMember,
+                                           @PathVariable Long itemId,
+                                           @RequestPart(value = "data") ItemUpdateRequest request,
+                                           @RequestPart(value = "newImages", required = false) List<MultipartFile> newImages) throws IOException {
 
+        itemService.updateItem(authMember.getMemberId(), itemId, request, newImages);
+
+        return ResponseEntity.ok().build();
+    }
 
     /**
      * 상품 삭제
      */
+    @DeleteMapping("/{itemId}")
+    public ResponseEntity<Void> deleteItem(@AuthenticationPrincipal AuthMember authMember,
+                                           @PathVariable Long itemId) {
+        itemService.deleteItem(authMember.getMemberId(), itemId);
+        return ResponseEntity.ok().build();
+    }
 
 
     /**

@@ -1,5 +1,6 @@
 package com.example.remarket.domain.item.service;
 
+import com.example.remarket.domain.item.dto.request.ItemUpdateRequest;
 import com.example.remarket.domain.item.entity.ItemImage;
 import com.example.remarket.domain.item.exception.ItemErrorCode;
 import com.example.remarket.global.error.BusinessException;
@@ -188,12 +189,82 @@ public class ItemService {
     }
 
     /**
-     * 상품 수정 (구현 필요 시 추가)
+     * 상품 수정
      */
+    @Transactional
+    public void updateItem(Long memberId, Long itemId, ItemUpdateRequest request, List<MultipartFile> newImages) throws IOException {
+
+        Item item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+
+        // 1. 작성자 권한 검증
+        if (!item.getMember().getId().equals(memberId)) {
+            throw new BusinessException(ItemErrorCode.NOT_ITEM_OWNER);
+        }
+
+        // 2. 기본 정보 수정 (제목, 내용, 가격 등)
+        item.updateItem(
+                request.getTitle(),
+                request.getContent(),
+                request.getPrice(),
+                request.getTradePlace(),
+                request.getCategory()
+        );
+
+        // 3. 이미지 삭제 처리
+        List<Long> deletedImageIds = request.getDeletedImageIds();
+        if (deletedImageIds != null && !deletedImageIds.isEmpty()) {
+            // 리스트를 순회하며 삭제 대상 제거 (removeIf 사용)
+            item.getItemImages().removeIf(img -> {
+                if (deletedImageIds.contains(img.getId())) {
+                    return true; // 리스트에서 제거
+                }
+                return false;
+            });
+        }
+
+        // 4. 새 이미지 추가 처리
+        if (newImages != null && !newImages.isEmpty()) {
+            List<String> storedFileNames = fileUtil.storeFiles(newImages);
+            for (String storedName : storedFileNames) {
+                // 임시 순서로 추가 (나중에 재정렬)
+                ItemImage newImage = ItemImage.createItemImage(storedName, false, 999);
+                item.addItemImage(newImage);
+            }
+        }
+
+        // 5. 대표 이미지 재설정 및 순서 정렬 (0번 인덱스가 대표 이미지)
+        List<ItemImage> currentImages = item.getItemImages();
+        if (!currentImages.isEmpty()) {
+            for (int i = 0; i < currentImages.size(); i++) {
+                ItemImage img = currentImages.get(i);
+            }
+        }
+
+        // 6. 캐시 삭제
+        redisTemplate.delete("item:details:" + itemId);
+        redisTemplate.delete(MAIN_PAGE_CACHE_KEY);
+    }
 
     /**
-     * 상품 삭제 (구현 필요 시 추가)
+     * 상품 삭제
      */
+    @Transactional
+    public void deleteItem(Long memberId, Long itemId) {
+        Item item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+
+        if (!item.getMember().getId().equals(memberId)) {
+            throw new BusinessException(ItemErrorCode.NOT_ITEM_OWNER);
+        }
+
+        // DB 삭제
+        itemRepository.delete(item);
+
+        // 캐시 삭제
+        redisTemplate.delete("item:details:" + itemId);
+        redisTemplate.delete(MAIN_PAGE_CACHE_KEY);
+    }
 
     /**
      * 상품 목록 조회
