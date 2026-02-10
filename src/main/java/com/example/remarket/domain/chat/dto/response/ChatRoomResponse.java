@@ -17,7 +17,7 @@ public class ChatRoomResponse {
     private String itemTitle;
     private Long sellerId;
     private Long buyerId;
-    private String partnerName;
+    private String buyerName;
 
     public static ChatRoomResponse from(ChatRoom chatRoom, Long myMemberId) {
         Member partner = chatRoom.getSeller().getId().equals(myMemberId)
@@ -30,7 +30,7 @@ public class ChatRoomResponse {
                 .itemTitle(chatRoom.getItem().getTitle())
                 .sellerId(chatRoom.getSeller().getId())
                 .buyerId(chatRoom.getBuyer().getId())
-                .partnerName(partner.getNickname())
+                .buyerName(partner.getNickname())
                 .build();
     }
 }

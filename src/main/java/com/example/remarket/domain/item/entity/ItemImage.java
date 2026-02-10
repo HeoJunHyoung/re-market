@@ -44,4 +44,9 @@ public class ItemImage {
     }
 
     // 비즈니스 로직
+
+    public void updateImageInfo(Boolean isRepresentative, Integer sortOrder) {
+        this.isRepresentative = isRepresentative;
+        this.sortOrder = sortOrder;
+    }
 }

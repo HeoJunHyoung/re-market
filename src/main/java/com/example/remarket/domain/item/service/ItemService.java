@@ -238,6 +238,8 @@ public class ItemService {
         if (!currentImages.isEmpty()) {
             for (int i = 0; i < currentImages.size(); i++) {
                 ItemImage img = currentImages.get(i);
+                // 0번 인덱스면 대표 이미지(true), 아니면 false + 순서 저장
+                img.updateImageInfo(i == 0, i);
             }
         }
 
