@@ -15,6 +15,7 @@ public class MemberResponse {
     private String role;
     private Integer safetyScore;
     private Address address;
+    private Boolean isLocationVerified;
 
     public static MemberResponse fromEntity(Member member) {
         return MemberResponse.builder()
@@ -24,6 +25,7 @@ public class MemberResponse {
                 .role(String.valueOf(member.getRole()))
                 .safetyScore(member.getSafetyScore())
                 .address(member.getAddress())
+                .isLocationVerified(member.getIsLocationVerified())
                 .build();
     }
 }

@@ -97,18 +97,18 @@ public class BulkInsertTest {
     }
 
     private long createMockMember() {
-        String username = "tester_1m";
+        String username = "mock";
         List<Long> ids = jdbcTemplate.queryForList("SELECT member_id FROM members WHERE username = ?", Long.class, username);
         if (!ids.isEmpty()) {
             return ids.get(0);
         }
 
-        String sql = "INSERT INTO members (username, password, nickname, phone_number, safety_score, role, created_at, last_modified_at) " +
-                "VALUES (?, ?, ?, ?, 300, 'USER', NOW(), NOW())";
+        String sql = "INSERT INTO members (username, password, nickname, phone_number, safety_score, role, is_location_verified, version, created_at, last_modified_at) " +
+                "VALUES (?, ?, ?, ?, 300, 'USER', 0, 0, NOW(), NOW())";
 
         jdbcTemplate.update(sql,
                 username,
-                "$2a$10$MockPasswordHashValue...",
+                "$2a$10$gPrBypZokPwFnSKPptfhLeW0E45bhXAMmFztG74pgHUForE8A2dc.",
                 "대량테스터",
                 "010-0000-0000"
         );

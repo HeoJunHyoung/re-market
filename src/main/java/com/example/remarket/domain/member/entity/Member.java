@@ -48,6 +48,9 @@ public class Member extends BaseEntity {
     // 거래 횟수 (신규 계정 판단용)
     private Integer tradeCount = 0;
 
+    @Column(name = "is_location_verified")
+    private Boolean isLocationVerified = false; // 기본값 false
+
     @Version
     private Long version;
 
@@ -67,12 +70,17 @@ public class Member extends BaseEntity {
         return new Member(username, password, nickname, phoneNumber);
     }
 
-    // == 연관관계 편의 메서드 == //
-
-
     // == 비즈니스 로직 == //
+
+    // 인증 성공 시 호출할 메서드
+    public void verifyLocation() {
+        this.isLocationVerified = true;
+    }
+
+    // 주소를 새로 설정(수정)하면 인증을 초기화
     public void updateAddress(Address address) {
         this.address = address;
+        this.isLocationVerified = false;
     }
 
     // 점수 업데이트 로직

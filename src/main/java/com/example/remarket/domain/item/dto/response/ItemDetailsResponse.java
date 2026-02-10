@@ -37,6 +37,7 @@ public class ItemDetailsResponse {
     private Category category;
 
     private Boolean isFavorite;
+    private boolean sellerLocationVerified;
 
     @Builder.Default
     private List<ItemDetailsImageResponse> itemImages = new ArrayList<>();
@@ -46,6 +47,8 @@ public class ItemDetailsResponse {
         List<ItemDetailsImageResponse> imageResponses = item.getItemImages().stream()
                 .map(ItemDetailsImageResponse::fromEntity)
                 .toList();
+
+        Boolean verified = item.getMember().getIsLocationVerified();
 
         return ItemDetailsResponse.builder()
                 .itemId(item.getId())
@@ -64,6 +67,7 @@ public class ItemDetailsResponse {
                 .category(item.getCategory())
                 .itemImages(imageResponses)
                 .isFavorite(isFavorite)
+                .sellerLocationVerified(verified != null && verified)
                 .build();
 
     }
