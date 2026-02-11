@@ -3,6 +3,7 @@ package com.example.remarket.domain.item.service;
 import com.example.remarket.domain.item.dto.request.ItemUpdateRequest;
 import com.example.remarket.domain.item.entity.ItemImage;
 import com.example.remarket.domain.item.exception.ItemErrorCode;
+import com.example.remarket.domain.region.repository.NeighborhoodAdjacencyRepository;
 import com.example.remarket.global.error.BusinessException;
 import com.example.remarket.global.util.FileUtil;
 import com.example.remarket.domain.chat.repository.jpa.ChatRoomRepository;
@@ -56,6 +57,8 @@ public class ItemService {
     private final MemberRepository memberRepository;
     private final FavoriteRepository favoriteRepository;
     private final TradeRepository tradeRepository;
+    private final NeighborhoodAdjacencyRepository adjacencyRepository;
+
     private final FileUtil fileUtil;
     private final ChatService chatService;
     private final ChatRoomRepository chatRoomRepository;
@@ -274,35 +277,40 @@ public class ItemService {
      * - Distributed Lock (Thundering Herd 방지)
      * - Double Checked Locking
      */
-    public Slice<ItemListResponse> getItemList(ItemSearchCondition condition, Pageable pageable) {
-        // 1. 캐싱 대상 여부 확인 (검색 조건 x, 첫 페이지인 경우)
-        boolean isMainPage = isMainPageRequest(condition, pageable);
+    public Slice<ItemListResponse> getItemList(ItemSearchCondition condition, Pageable pageable, Long memberId) {
 
-        // 메인 페이지가 아니면 캐시 없이 DB 조회
-        if (!isMainPage) {
-            return fetchItemListFromDb(condition, pageable);
+        List<String> targetRegions = null;
+
+        Member loginMember = memberRepository.findById(memberId)
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+        // 1. 로그인 회원인 경우: 내 동네 확인 -> 인접 동네 리스트 추출
+        if (loginMember != null && loginMember.getAddress() != null) {
+            String myNeighborhood = loginMember.getAddress().getNeighborhood();
+            // 2단계 거리까지 조회 (정책에 따라 변경 가능)
+            targetRegions = adjacencyRepository.findNearbyNeighborhoods(myNeighborhood, condition.getDistanceLevel());
         }
 
-        // =================================================================
-        // [1] 1차 캐시 조회 (Lock 없이 빠르게)
-        // =================================================================
-        List<ItemListResponse> cachedList = getCachedItemList(MAIN_PAGE_CACHE_KEY);
-        if (cachedList != null) {
-            log.debug("Cache Hit (1st): Main Page Items");
-            return new SliceImpl<>(cachedList, pageable, true);
+        // 2. 캐시 조회 로직
+        boolean isGlobalMainPage = (targetRegions == null) && isMainPageRequest(condition, pageable);
+
+        if (isGlobalMainPage) {
+            // 1차 캐시 조회
+            List<ItemListResponse> cachedList = getCachedItemList(MAIN_PAGE_CACHE_KEY);
+            if (cachedList != null) {
+                log.debug("Cache Hit (1st): Global Main Page Items");
+                return new SliceImpl<>(cachedList, pageable, true);
+            }
         }
 
-        // =================================================================
-        // [4] DB 조회 및 캐시 갱신
-        // =================================================================
-        Slice<ItemListResponse> result = fetchItemListFromDb(condition, pageable);
+        // 3. DB 조회 (동네 리스트 전달)
+        Slice<ItemListResponse> result = fetchItemListFromDb(condition, targetRegions, pageable);
 
-        // 캐시 저장 (메인 페이지인 경우에만)
-        if (result.hasContent()) {
+        // 4. 캐시 갱신 (글로벌 메인 페이지인 경우에만)
+        if (isGlobalMainPage && result.hasContent()) {
             try {
-                // 전체 Slice 객체 대신 내용물(Content List)만 저장하여 직렬화 이슈 방지
                 redisTemplate.opsForValue().set(MAIN_PAGE_CACHE_KEY, result.getContent(), Duration.ofSeconds(MAIN_PAGE_TTL));
-                log.info("Cache Put: Main Page Items");
+                log.info("Cache Put: Global Main Page Items");
             } catch (Exception e) {
                 log.error("Redis Set Failed: {}", e.getMessage());
             }
@@ -514,8 +522,9 @@ public class ItemService {
     }
 
     // --- Helper Methods ---
-    private Slice<ItemListResponse> fetchItemListFromDb(ItemSearchCondition condition, Pageable pageable) {
-        return itemRepository.searchItems(condition, pageable)
+    private Slice<ItemListResponse> fetchItemListFromDb(ItemSearchCondition condition, List<String> targetRegions, Pageable pageable) {
+        // Repository에 검색 조건과 "동네 리스트"를 별도로 넘김
+        return itemRepository.searchItems(condition, targetRegions, pageable)
                 .map(item -> ItemListResponse.fromEntity(item, null));
     }
 

@@ -9,6 +9,7 @@ import com.example.remarket.domain.item.dto.request.ItemUpdateRequest;
 import com.example.remarket.domain.item.dto.response.ItemDetailsResponse;
 import com.example.remarket.domain.item.dto.response.ItemListResponse;
 import com.example.remarket.domain.item.service.ItemService;
+import com.example.remarket.domain.member.entity.Member;
 import com.example.remarket.global.security.principal.AuthMember;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -91,8 +92,10 @@ public class ItemController {
      * 상품 전체 조회
      */
     @GetMapping
-    public ResponseEntity<Slice<ItemListResponse>> getItemList(@ModelAttribute ItemSearchCondition condition, @PageableDefault(size = 20) Pageable pageable) {
-        Slice<ItemListResponse> itemListResponses = itemService.getItemList(condition, pageable);
+    public ResponseEntity<Slice<ItemListResponse>> getItemList(@AuthenticationPrincipal AuthMember authMember,
+                                                               @ModelAttribute ItemSearchCondition condition,
+                                                               @PageableDefault(size = 20) Pageable pageable) {
+        Slice<ItemListResponse> itemListResponses = itemService.getItemList(condition, pageable, authMember.getMemberId());
         return ResponseEntity.ok(itemListResponses);
     }
 

@@ -17,6 +17,7 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 
 import static com.example.remarket.domain.item.entity.QItem.item;
+import static com.example.remarket.domain.member.entity.QMember.member;
 
 @RequiredArgsConstructor
 public class ItemRepositoryImpl implements ItemRepositoryCustom{
@@ -24,7 +25,7 @@ public class ItemRepositoryImpl implements ItemRepositoryCustom{
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public Slice<Item> searchItems(ItemSearchCondition condition, Pageable pageable) {
+    public Slice<Item> searchItems(ItemSearchCondition condition, List<String> targetRegions, Pageable pageable) {
 
         // 검색어가 있을 경우 정확도(Score) 템플릿 생성
         NumberTemplate<Double> matchScore = null;
@@ -41,7 +42,8 @@ public class ItemRepositoryImpl implements ItemRepositoryCustom{
                         titleMatches(matchScore), // 수정된 메서드 사용
                         priceGreaterThanOrEqual(condition.getMinPrice()),
                         priceLowerThanOrEqual(condition.getMaxPrice()),
-                        statusEq(condition.getStatus())
+                        statusEq(condition.getStatus()),
+                        regionIn(targetRegions)
                 )
                 .orderBy(
                         // 검색어가 있으면 정확도순 정렬 우선, 그 다음 기존 정렬 조건
@@ -77,6 +79,12 @@ public class ItemRepositoryImpl implements ItemRepositoryCustom{
 
     private BooleanExpression statusEq(ItemStatus status) {
         return status != null ? item.status.eq(status) : null;
+    }
+
+    private BooleanExpression regionIn(List<String> regions) {
+        // 리스트가 비어있으면 결과가 안 나와야 함
+        // 안전하게 null이거나 비어있으면 null 반환하여 조건 무시 or false 반환
+        return (regions != null && !regions.isEmpty()) ? member.address.neighborhood.in(regions) : null;
     }
 
     // 정렬 로직 수정

@@ -11,5 +11,6 @@ public class ItemSearchCondition {
     private Integer maxPrice;
     private String sort;
     private ItemStatus status;
+    private Integer distanceLevel;
 
 }
