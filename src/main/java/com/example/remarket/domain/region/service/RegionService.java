@@ -47,13 +47,16 @@ public class RegionService {
 
                 try {
                     // CSV 포맷에 맞춰 데이터 추출
-                    String name = data[2].trim(); // 3번째 열: 읍면동/구 (예: 장당동, 개군면)
+                    String city = data[0].trim();
+                    String district = data[1].trim();
+                    String name = data[2].trim();
+
                     double lat = Double.parseDouble(data[3].trim()); // 4번째 열: 위도
                     double lng = Double.parseDouble(data[4].trim()); // 5번째 열: 경도
 
                     // 이름이 비어있지 않은 경우만 추가
                     if (!name.isEmpty()) {
-                        regionList.add(new RegionDto(name, lat, lng));
+                        regionList.add(new RegionDto(city, district, name, lat, lng));
                     }
                 } catch (NumberFormatException e) {
                     log.warn("좌표 변환 실패 행: {}", line);
@@ -80,9 +83,8 @@ public class RegionService {
         for (RegionDto base : regions) {
             for (RegionDto target : regions) {
 
-                // 자기 자신은 레벨 0으로 저장 (조회 편의성)
-                if (base.getName().equals(target.getName())) {
-                    adjacencyList.add(new NeighborhoodAdjacency(base.getName(), target.getName(), 0));
+                if (base.getFullName().equals(target.getFullName())) {
+                    adjacencyList.add(new NeighborhoodAdjacency(base.getFullName(), target.getFullName(), 0));
                     continue;
                 }
 
@@ -100,7 +102,7 @@ public class RegionService {
 
                 // 해당 범위 내에 들어오면 리스트에 추가
                 if (level > 0) {
-                    adjacencyList.add(new NeighborhoodAdjacency(base.getName(), target.getName(), level));
+                    adjacencyList.add(new NeighborhoodAdjacency(base.getFullName(), target.getFullName(), level));
                 }
             }
         }

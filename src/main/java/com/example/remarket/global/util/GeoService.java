@@ -1,5 +1,9 @@
 package com.example.remarket.global.util;
 
+import com.example.remarket.domain.member.entity.Address;
+import com.example.remarket.domain.region.exception.RegionErrorCode;
+import com.example.remarket.global.error.BusinessException;
+import com.example.remarket.global.error.GlobalErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,7 +23,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class GeoService {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
 
     @Value("${kakao.rest-api-key}")
     private String kakaoApiKey;
@@ -27,41 +31,59 @@ public class GeoService {
     private static final String KAKAO_GEO_URL = "https://dapi.kakao.com/v2/local/geo/coord2regioncode.json";
 
     /**
-     * 현재 좌표가 속한 동네 이름 가져오기 (기존 기능)
+     * 위도/경도 좌표를 받아 행정구역 주소 객체(Address)로 반환
      */
-    public String getRegionName(Double latitude, Double longitude) {
-        String url = "https://dapi.kakao.com/v2/local/geo/coord2regioncode.json";
-        return callKakaoApi(url, latitude, longitude, "documents");
-    }
+    public Address getAddressFromCoordinates(Double latitude, Double longitude) {
 
-    /**
-     * 주소를 위도/경도 좌표로 변환하기
-     */
-    public Map<String, Double> getCoordinates(String address) {
         try {
-            String url = "https://dapi.kakao.com/v2/local/search/address.json";
             HttpHeaders headers = new HttpHeaders();
             headers.set("Authorization", "KakaoAK " + kakaoApiKey);
 
-            String targetUrl = UriComponentsBuilder.fromHttpUrl(url)
-                    .queryParam("query", address)
-                    .build().toUriString();
+            // Kakao 로컬 API 호출 (x: 경도, y: 위도)
+            String url = UriComponentsBuilder.fromHttpUrl(KAKAO_GEO_URL)
+                    .queryParam("x", longitude)
+                    .queryParam("y", latitude)
+                    .build()
+                    .toUriString();
 
-            HttpEntity<String> entity = new HttpEntity<>(headers);
-            ResponseEntity<Map> response = restTemplate.exchange(targetUrl, HttpMethod.GET, entity, Map.class);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
 
-            List<Map<String, Object>> documents = (List<Map<String, Object>>) response.getBody().get("documents");
-            if (!documents.isEmpty()) {
-                Map<String, Object> first = documents.get(0);
-                return Map.of(
-                        "lat", Double.parseDouble(first.get("y").toString()),
-                        "lng", Double.parseDouble(first.get("x").toString())
-                );
-            }
+            // 응답 파싱
+            return parseAddressFromResponse(response.getBody());
+
         } catch (Exception e) {
-            log.error("주소 좌표 변환 실패: {}", address, e);
+            log.error("Kakao API 좌표 변환 실패 - lat: {}, lng: {}", latitude, longitude, e);
+            throw new BusinessException(GlobalErrorCode.INTERNAL_SERVER_ERROR); // 또는 적절한 위치 에러 코드
         }
-        return null;
+    }
+
+    private Address parseAddressFromResponse(Map<String, Object> body) {
+        if (body == null) return null;
+
+        List<Map<String, Object>> documents = (List<Map<String, Object>>) body.get("documents");
+        if (documents == null || documents.isEmpty()) {
+            throw new BusinessException(RegionErrorCode.REGION_NOT_FOUND);
+        }
+
+        // Kakao API는 'B'(법정동)과 'H'(행정동) 정보 제공
+        // 생활 서비스(당근 등)는 주로 '행정동(H)'을 기준
+        for (Map<String, Object> doc : documents) {
+            if ("H".equals(doc.get("region_type"))) {
+                String city = (String) doc.get("region_1depth_name");      // 시/도 (예: 서울특별시)
+                String district = (String) doc.get("region_2depth_name");  // 구/군 (예: 강남구)
+                String neighborhood = (String) doc.get("region_3depth_name"); // 동/면/읍 (예: 역삼1동)
+
+                return new Address(city, district, neighborhood);
+            }
+        }
+
+        // 행정동 정보가 없다면 법정동(B) 정보라도 사용 (예외 처리)
+        Map<String, Object> backupDoc = documents.get(0);
+        String city = (String) backupDoc.get("region_1depth_name");
+        String district = (String) backupDoc.get("region_2depth_name");
+        String neighborhood = (String) backupDoc.get("region_3depth_name");
+
+        return new Address(city, district, neighborhood);
     }
 
     /**
@@ -77,8 +99,12 @@ public class GeoService {
         return dist;
     }
 
-    private double deg2rad(double deg) { return (deg * Math.PI / 180.0); }
-    private double rad2deg(double rad) { return (rad * 180.0 / Math.PI); }
+    private double deg2rad(double deg) {
+        return (deg * Math.PI / 180.0);
+    }
+    private double rad2deg(double rad) {
+        return (rad * 180.0 / Math.PI);
+    }
 
     private String callKakaoApi(String url, Double lat, Double lng, String rootKey) {
         try {

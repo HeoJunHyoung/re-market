@@ -17,7 +17,6 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 
 import static com.example.remarket.domain.item.entity.QItem.item;
-import static com.example.remarket.domain.member.entity.QMember.member;
 
 @RequiredArgsConstructor
 public class ItemRepositoryImpl implements ItemRepositoryCustom{
@@ -82,9 +81,7 @@ public class ItemRepositoryImpl implements ItemRepositoryCustom{
     }
 
     private BooleanExpression regionIn(List<String> regions) {
-        // 리스트가 비어있으면 결과가 안 나와야 함
-        // 안전하게 null이거나 비어있으면 null 반환하여 조건 무시 or false 반환
-        return (regions != null && !regions.isEmpty()) ? member.address.neighborhood.in(regions) : null;
+        return (regions != null && !regions.isEmpty()) ? item.member.address.neighborhood.in(regions) : null;
     }
 
     // 정렬 로직 수정

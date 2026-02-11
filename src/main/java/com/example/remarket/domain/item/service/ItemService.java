@@ -284,11 +284,17 @@ public class ItemService {
         Member loginMember = memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
 
-        // 1. 로그인 회원인 경우: 내 동네 확인 -> 인접 동네 리스트 추출
         if (loginMember != null && loginMember.getAddress() != null) {
-            String myNeighborhood = loginMember.getAddress().getNeighborhood();
-            // 2단계 거리까지 조회 (정책에 따라 변경 가능)
-            targetRegions = adjacencyRepository.findNearbyNeighborhoods(myNeighborhood, condition.getDistanceLevel());
+            // 동네 이름만으로는 중복(평택 중앙동 vs 과천 중앙동)되므로 전체 주소를 조합하여 조회 키로 사용
+            String fullAddress = loginMember.getAddress().getCity() + " " +
+                    loginMember.getAddress().getDistrict() + " " +
+                    loginMember.getAddress().getNeighborhood();
+
+            // distanceLevel이 null이면 기본값 2 사용
+            int distance = (condition.getDistanceLevel() != null) ? condition.getDistanceLevel() : 2;
+
+            // 설정 거리까지 조회 (정책에 따라 변경 가능)
+            targetRegions = adjacencyRepository.findNearbyNeighborhoods(fullAddress, distance);
         }
 
         // 2. 캐시 조회 로직

@@ -4,6 +4,7 @@ import com.example.remarket.domain.member.dto.request.LocationVerifyRequest;
 import com.example.remarket.domain.member.dto.response.MemberResponse;
 import com.example.remarket.domain.member.entity.Member;
 import com.example.remarket.domain.member.repository.MemberRepository;
+import com.example.remarket.domain.region.exception.RegionErrorCode;
 import com.example.remarket.global.error.BusinessException;
 import com.example.remarket.domain.member.entity.Address;
 import com.example.remarket.domain.member.exception.MemberErrorCode;
@@ -32,57 +33,22 @@ public class MemberService {
     }
 
     @Transactional
-    public void updateMemberLocation(Long memberId, Address address) {
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
-        member.updateAddress(address);
-    }
-
-    @Transactional
-    public boolean verifyMemberLocation(Long memberId, LocationVerifyRequest request) {
+    public void verifyMemberLocation(Long memberId, LocationVerifyRequest request) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
 
-        if (member.getAddress() == null) {
-            throw new IllegalArgumentException("먼저 동네를 설정해주세요.");
+        // 1. 좌표(위도, 경도)를 통해 실제 행정 구역 주소 가져오기
+        Address currentAddress = geoService.getAddressFromCoordinates(request.getLatitude(), request.getLongitude());
+
+        if (currentAddress == null) {
+            throw new BusinessException(RegionErrorCode.REGION_NOT_FOUND); // 적절한 예외 처리
         }
 
-        // 1. 현재 좌표의 동네 이름 조회 (단순 문자열 비교용)
-        String realNeighborhood = geoService.getRegionName(request.getLatitude(), request.getLongitude());
-        String userNeighborhood = member.getAddress().getNeighborhood();
+        // 2. 주소 업데이트 및 인증 완료 처리 (한 번에 수행)
+        member.updateAddress(currentAddress); // 주소 갱신
+        member.verifyLocation();              // 인증 상태 true 변경
 
-        log.info("사용자 설정 동네: {}, 실제 감지된 동네: {}", userNeighborhood, realNeighborhood);
-
-        // 2.1. 이름이 일치하거나 포함되면 즉시 통과
-        if (realNeighborhood != null &&
-                (realNeighborhood.contains(userNeighborhood) || userNeighborhood.contains(realNeighborhood))) {
-            return true;
-        }
-
-        // 2.2. 이름이 다르더라도 거리 기반 오차 허용 (Widen Margin)
-        String fullAddress = member.getAddress().getCity() + " " +
-                member.getAddress().getDistrict() + " " +
-                userNeighborhood;
-
-        Map<String, Double> setCoords = geoService.getCoordinates(fullAddress);
-
-        if (setCoords != null) {
-            double distance = geoService.calculateDistance(
-                    request.getLatitude(), request.getLongitude(),
-                    setCoords.get("lat"), setCoords.get("lng")
-            );
-
-            log.info("동네 중심점과의 거리: {} km", String.format("%.2f", distance));
-
-            // 반경 3km 이내라면 인증 승인
-            if (distance <= 3.0) {
-                log.info("반경 3km 이내 확인됨. 인증 승인");
-                member.verifyLocation(); // DB에 인증됨(true)으로 기록
-                return true;
-            }
-        }
-
-        return false;
+        log.info("사용자 {} 위치 인증 및 갱신 완료: {}", memberId, currentAddress.getNeighborhood());
     }
 
 }

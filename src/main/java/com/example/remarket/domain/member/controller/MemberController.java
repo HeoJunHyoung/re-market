@@ -25,26 +25,11 @@ public class MemberController {
         return ResponseEntity.ok(memberResponse);
     }
 
-    @PatchMapping("/location")
-    public ResponseEntity<Void> updateLocation(@AuthenticationPrincipal AuthMember authMember,
-                                               @RequestBody LocationUpdateRequest request) {
-
-        Address address = new Address(request.getCity(), request.getDistrict(), request.getNeighborhood());
-        memberService.updateMemberLocation(authMember.getMemberId(), address);
-
-        return ResponseEntity.ok().build();
-    }
-
     @PostMapping("/verify-location")
     public ResponseEntity<MessageResponse> verifyLocation(@AuthenticationPrincipal AuthMember authMember,
                                                           @RequestBody LocationVerifyRequest request) {
-        boolean isVerified = memberService.verifyMemberLocation(authMember.getMemberId(), request);
-
-        if (isVerified) {
-            return ResponseEntity.ok(new MessageResponse("동네 인증에 성공했습니다!"));
-        } else {
-            return ResponseEntity.badRequest().body(new MessageResponse("현재 위치가 설정된 동네와 다릅니다."));
-        }
+        memberService.verifyMemberLocation(authMember.getMemberId(), request);
+        return ResponseEntity.ok(new MessageResponse("동네 인증에 성공했습니다!"));
     }
 
 }

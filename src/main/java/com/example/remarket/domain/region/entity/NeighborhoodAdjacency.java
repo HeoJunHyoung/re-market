@@ -19,10 +19,10 @@ public class NeighborhoodAdjacency extends BaseEntity {
     private Long id;
 
     @Column(name = "base_neighborhood", nullable = false)
-    private String baseNeighborhood;   // 기준 동네 (예: 장당동)
+    private String baseNeighborhood;
 
     @Column(name = "target_neighborhood", nullable = false)
-    private String targetNeighborhood; // 인접 동네 (예: 이충동)
+    private String targetNeighborhood;
 
     @Column(name = "distance_level", nullable = false)
     private Integer distanceLevel;     // 거리 레벨 (1: 1.5km, 2: 3.0km, 3: 5.0km)
