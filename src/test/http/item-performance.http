@@ -1,0 +1,15 @@
+### 1.
+GET http://localhost:8000/items?title=어센틱&page=0&size=20
+Content-Type: application/json
+
+### 2. 가격이 20,000원 이상인 '어센틱' 상품 검색
+GET http://localhost:8000/items?title=어센틱&minPrice=20000&page=0&size=20
+Content-Type: application/json
+
+### 3.
+GET http://localhost:8000/items?title=어센틱&sort=lowPrice&page=0&size=20
+Content-Type: application/json
+
+### 4.
+GET http://localhost:8000/items?title=어센틱&sort=&page=0&size=20
+Content-Type: application/json
