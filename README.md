@@ -49,7 +49,7 @@
 * **거래 상태 관리**: `판매중` -> `예약중` -> `판매완료`로 이어지는 직관적인 프로세스를 제공합니다.
 
 
-### 3. 끊김 없는 실시간 채팅 (Real-time Chat)
+### 3. 실시간 채팅 (Real-time Chat)
 <table>
   <tr>
     <td align="center" width="50%">
@@ -112,34 +112,92 @@
 | **4. 신규 보호** | `New User Shield` | 거래 5회 미만 사용자는 점수 하락 폭을 완화(50%)하고 상승 폭을 제한하여 초기 이탈을 막습니다. |
 | **5. 일일 제한** | `Daily Cap` | 하루 최대 상승(+25) 및 하락(-80) 폭을 제한하여 **악의적인 테러나 급격한 변동을 방어**합니다. |
 
+<details>
+<summary><b>✅ 안심 지수 산출 코드 확인하기 (ReviewService.java)</b></summary>
+<div markdown="1">
+
+```java
+// 시간 경과에 따른 가중치 계산 (90일 기준 감쇠)
+private double calculateRecentWeight(Trade trade) {
+    long daysSince = ChronoUnit.DAYS.between(trade.getCreatedAt().toLocalDate(), java.time.LocalDate.now());
+    return Math.exp(-daysSince / 90.0); // e^(-days / 90)
+}
+
+// 최종 변동 점수 계산 (어뷰징 방지 및 신규 유저 보호 적용)
+private int calculateScoreDelta(Trade trade, Member reviewer, Member reviewee, Evaluation eval, ReviewTag tag) {
+    // ... (기본 점수 계산 생략)
+
+    // 동일 인물 간 반복 거래 횟수 조회 (어뷰징 방지)
+    long tradeCount = tradeRepository.countBySellerAndBuyer(reviewee, reviewer)
+            + tradeRepository.countBySellerAndBuyer(reviewer, reviewee);
+
+    // 신규 계정 보호 (거래 5회 미만 시 하락폭 50% 완화)
+    if (reviewee.getTradeCount() < 5) {
+        if (rawDelta < 0) {
+            rawDelta *= 0.5; 
+        }
+    }
+    return (int) Math.round(rawDelta);
+}
+```
+
+</div>
+</details>
+
+<br>
+
 ### 2. 정밀 위치 인증 및 반경 계산 (Location Intelligence)
 행정 구역의 모호함을 해결하고 정확한 '동네'를 정의하기 위해 외부 API와 지리수학적 공식을 결합했습니다.
 
-* **좌표-행정동 변환**: Kakao Local API를 활용하여 위/경도 좌표를 법정동이 아닌 실생활 기준의 행정동(H-Code)으로 변환, 사용자에게 친숙한 지역 명칭을 제공합니다.
+* **좌표-행정동 변환**: Kakao Local API를 활용하여 위/경도 좌표를 법정동이 아닌 실생활 기준의 **행정동(H-Code)**으로 변환, 사용자에게 친숙한 지역 명칭을 제공합니다.
 * **하버사인 공식 (Haversine Formula)**: 지구의 곡률을 고려한 구면 삼각법을 적용하여 사용자 간의 거리를 오차 범위 내에서 정밀하게 계산합니다.
   > `Level 1 (1.5km)` → `Level 2 (3.0km)` → `Level 3 (5.0km)` 단계별 이웃 범위를 동적으로 산출
 
+<details>
+<summary><b>✅ 하버사인 거리 계산 코드 확인하기 (GeoService.java)</b></summary>
+<div markdown="1">
+
+```java
+/**
+ * 하버사인(Haversine) 공식을 이용한 두 좌표 사이의 거리 계산 (단위: km)
+ * 지구의 곡률을 고려하여 오차 범위를 최소화함
+ */
+public double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    double theta = lon1 - lon2;
+    double dist = Math.sin(deg2rad(lat1)) * Math.sin(deg2rad(lat2)) +
+            Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.cos(deg2rad(theta));
+    
+    dist = Math.acos(dist);
+    dist = rad2deg(dist);
+    dist = dist * 60 * 1.1515 * 1.609344; // Mile -> Km 변환
+    
+    return dist;
+}
+```
+
+</div>
+</details>
 
 ---
 
 ## 🚀 기술적 도전 및 성능 최적화 (Technical Challenges)
-대규모 트래픽 환경에서의 성능 병목을 해결하고 데이터 정합성을 확보하기 위해 적용한 엔지니어링 사례입니다.
+> 각 항목의 [하이퍼링크](https://hyperlink)를 클릭하면 해당 기술의 문제 해결 과정을 담은 기술 블로그로 이동합니다.
 
 ### 1. 검색 및 데이터 조회 최적화
-* **FullText Index**: `LIKE %keyword%` 검색의 Full Scan 문제를 해결하기 위해 **ngram 파서** 기반 역인덱스를 도입하여 검색 성능을 **55배 향상**시켰습니다.
-* **N+1 문제 해결**: 1:N 관계는 `Batch Fetch`, N:1 관계는 `Fetch Join`을 적용하여 API당 쿼리 발생 횟수를 획기적으로 줄였습니다(21회 → 2회).
+* **[FullText Index: ](https://receiver40.tistory.com/359)**`LIKE %keyword%` 검색의 Full Scan 문제를 해결하기 위해 **ngram 파서** 기반 역인덱스를 도입하여 검색 성능을 **55배 향상**시켰습니다.
+*  **[N+1 문제 해결: ](https://receiver40.tistory.com/362)** 1:N 관계는 `Batch Fetch`, N:1 관계는 `Fetch Join`을 적용하여 API당 쿼리 발생 횟수를 획기적으로 줄였습니다(21회 → 2회). 
 
 ### 2. 동시성 제어 및 데이터 무결성
-* **재고 관리 (Pessimistic Lock)**: 선착순 나눔 시 발생하는 Race Condition을 방지하기 위해 DB 레벨에서 락을 걸어 초과 당첨을 원천 차단했습니다.
-* **안심 지수 (Optimistic Lock)**: 동시 평가 시 발생하는 갱신 손실을 `@Version` 기반 낙관적 락으로 해결하여 점수 데이터의 신뢰도를 유지했습니다.
+* **[재고 관리 (Pessimistic Lock): ](https://receiver40.tistory.com/361)** 선착순 나눔 시 발생하는 Race Condition을 방지하기 위해 DB 레벨에서 락을 걸어 초과 당첨을 원천 차단했습니다. 
+* **[**안심 지수 (Optimistic Lock)**:](https://receiver40.tistory.com/361)** 동시 평가 시 발생하는 갱신 손실을 `@Version` 기반 낙관적 락으로 해결하여 점수 데이터의 신뢰도를 유지했습니다. 
 
 ### 3. Redis 기반 고가용성 캐싱
-* **방파제 전략**: 메인 페이지 조회 시 **Redisson 분산 락**과 **DCL(Double-Checked Locking)**을 결합하여 캐시 만료 시 발생하는 DB 폭주(Thundering Herd)를 방어했습니다.
-* **악성 요청 방어**: 존재하지 않는 ID 조회 시 `Null Object`를 캐싱하여 DB를 보호하는 **Cache Penetration 방어** 로직을 구축했습니다.
+* **[방파제 전략: ](https://receiver40.tistory.com/363)** 메인 페이지 조회 시 **Redisson 분산 락**과 **DCL(Double-Checked Locking)**을 결합하여 캐시 만료 시 발생하는 DB 폭주(Thundering Herd)를 방어했습니다. 
+* **[악성 요청 방어: ](https://receiver40.tistory.com/363)** 존재하지 않는 ID 조회 시 `Null Object`를 캐싱하여 DB를 보호하는 **Cache Penetration 방어** 로직을 구축했습니다.
 
 ### 4. 비동기 처리를 통한 I/O 병목 해소
-* **병렬 이미지 업로드**: `CompletableFuture`를 활용해 고화질 이미지 저장 작업을 병렬화하여 처리 속도를 **5배 단축**했습니다.
-* **Async 서비스**: SMS 발송 등 응답 대기가 긴 외부 연동 작업을 별도 스레드 풀에서 비동기로 처리하여 사용자 경험을 개선했습니다.
+* **[병렬 이미지 업로드: ](https://receiver40.tistory.com/360)** `CompletableFuture`를 활용해 고화질 이미지 저장 작업을 병렬화하여 처리 속도를 **5배 단축**했습니다. 
+* **[Async 서비스: ](https://receiver40.tistory.com/360)** SMS 발송 등 응답 대기가 긴 외부 연동 작업을 별도 스레드 풀에서 비동기로 처리하여 사용자 경험을 개선했습니다. 
 
 ---
 
