@@ -1,6 +1,10 @@
 # 🛒 Re-Market (리마켓)
 > **신뢰를 기술로 증명하는 하이퍼 로컬(Hyper-local) 중고 거래 플랫폼**
 
+<p align="center">
+<img src="images/demo/main.png" width="750" alt="remarket"/>
+</p>
+
 ---
 ## 📋 프로젝트 개요 (Overview)
 
