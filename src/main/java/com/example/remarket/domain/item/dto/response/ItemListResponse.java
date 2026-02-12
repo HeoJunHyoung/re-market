@@ -20,8 +20,10 @@ public class ItemListResponse {
     private Long tradeId;
     private String title;
     private String tradePlace;
+    private String region;
+
     private Integer price;
-    private String thumbnailUrl; // 대표 이미지 URL
+    private String thumbnailUrl;
     private ItemStatus status;
     private Integer chatCount;
     private Integer favoriteCount;
@@ -35,11 +37,17 @@ public class ItemListResponse {
                 .map(ItemImage::getImageUrl)
                 .orElse(null);
 
+        String regionName = "지역정보 없음";
+        if (item.getMember() != null && item.getMember().getAddress() != null) {
+            regionName = item.getMember().getAddress().getNeighborhood();
+        }
+
         return ItemListResponse.builder()
                 .itemId(item.getId())
                 .tradeId(tradeId)
                 .title(item.getTitle())
                 .tradePlace(item.getTradePlace())
+                .region(regionName)
                 .price(item.getPrice())
                 .thumbnailUrl(thumbnailUrl)
                 .status(item.getStatus())

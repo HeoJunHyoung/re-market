@@ -20,11 +20,11 @@
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="images/demo/location(1).gif" alt="포트폴리오 목록 조회" width="70%"><br/>
+      <img src="images/demo/location_1_.gif" alt="포트폴리오 목록 조회" width="70%"><br/>
       <p>내 동네 설정 (1)</p>
     </td>
     <td align="center" width="50%">
-      <img src="images/demo/location(2).gif" alt="포트폴리오 상세 조회" width="70%"><br/>
+      <img src="images/demo/location_2_.gif" alt="포트폴리오 상세 조회" width="70%"><br/>
       <p>내 동네 설정 (2)</p>
     </td>
   </tr>
@@ -36,20 +36,41 @@ GPS를 이용하여 사용자의 실제 위치가 설정된 동네(행정동 반
 <br>
 
 ### 2. 중고 거래 및 무료 나눔 (Trading & Sharing)
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="images/demo/selling.gif" alt="포트폴리오 목록 조회" width="70%"><br/>
+      <p>판매</p>
+    </td>
+    <td align="center" width="50%">
+      <img src="images/demo/sharing.gif" alt="포트폴리오 상세 조회" width="70%"><br/>
+      <p>나눔</p>
+    </td>
+  </tr>
+</table>
+
 누구나 쉽게 물건을 사고팔 수 있으며, 안 쓰는 물건을 이웃에게 나누는 **'무료 나눔'** 전용 기능을 제공합니다. 특히 인기 있는 나눔 물품의 경우, **선착순 신청** 기능을 통해 공정하고 투명하게 대상자를 선정합니다.
-* **상태 관리**: `판매중` ↔ `예약중` ↔ `거래완료` 상태를 실시간으로 공유
 
 <br>
 
-### 3. 데이터 기반 신뢰 평가 (Safety Score)
+### 3. 끊김 없는 실시간 채팅 (Real-time Chat)
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="images/demo/chatting.gif" alt="포트폴리오 목록 조회" width="90%"><br/>
+      <p>채팅</p>
+    </td>
+  </tr>
+</table>
+
+마음에 드는 물건을 발견하면 판매자와 즉시 대화할 수 있습니다. WebSocket을 활용하여 새로고침 없이 메시지가 전송되며, 채팅방 상단에 거래 물품 정보가 고정되어 편리한 거래 약속을 돕습니다.
+
+<br>
+
+### 4. 데이터 기반 신뢰 평가 (Safety Score)
 사용자의 거래 이력을 종합적으로 분석하여 **안심 지수**를 산출합니다.
 * **매너 평가**: 거래 후 남겨진 후기와 태그(친절함, 시간 준수 등)를 반영
 * **객관적 지표**: 단순 평점이 아닌, 거래 빈도와 신고 이력까지 포함한 신뢰도 지표 제공
-
-<br>
-
-### 4. 끊김 없는 실시간 채팅 (Real-time Chat)
-마음에 드는 물건을 발견하면 판매자와 즉시 대화할 수 있습니다. WebSocket을 활용하여 새로고침 없이 메시지가 전송되며, 채팅방 상단에 거래 물품 정보가 고정되어 편리한 거래 약속을 돕습니다.
 
 ---
 

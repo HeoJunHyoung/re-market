@@ -81,7 +81,17 @@ public class ItemRepositoryImpl implements ItemRepositoryCustom{
     }
 
     private BooleanExpression regionIn(List<String> regions) {
-        return (regions != null && !regions.isEmpty()) ? item.member.address.neighborhood.in(regions) : null;
+        if (regions == null || regions.isEmpty()) {
+            return null;
+        }
+
+        // DB의 city + " " + district + " " + neighborhood를 조합해서 비교
+        return item.member.address.city
+                .concat(" ")
+                .concat(item.member.address.district)
+                .concat(" ")
+                .concat(item.member.address.neighborhood)
+                .in(regions);
     }
 
     // 정렬 로직 수정
