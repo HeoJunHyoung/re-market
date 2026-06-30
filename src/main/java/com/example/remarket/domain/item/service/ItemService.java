@@ -341,10 +341,25 @@ public class ItemService {
             boolean isLocked = lock.tryLock(LOCK_WAIT_TIME, LOCK_LEASE_TIME, TimeUnit.SECONDS);
 
             if (!isLocked) {
-                log.warn("Main Page Lock 획득 실패 (Timeout) - DB 직접 조회");
+                log.warn("Main Page Lock 획득 실패 - 캐시 대기 후 재시도");
+
+                try {
+                    Thread.sleep(200);  // 락 잡은 스레드가 캐시 채울 시간을 줌
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+
+                // 캐시 재확인
+                List<ItemListResponse> retryCached = getCachedItemList(MAIN_PAGE_CACHE_KEY);
+                if (retryCached != null) {
+                    log.debug("Cache Hit (after lock wait)");
+                    return new SliceImpl<>(retryCached, pageable, true);
+                }
+
+                // 그래도 없으면 DB (최후의 fallback)
+                log.warn("Cache still empty, falling back to DB");
                 return fetchItemListFromDb(condition, targetRegions, pageable);
             }
-
             try {
                 // Double Checked Locking
                 List<ItemListResponse> dclCached = getCachedItemList(MAIN_PAGE_CACHE_KEY);
@@ -529,57 +544,49 @@ public class ItemService {
     @Transactional
     public Long requestSharing(Long itemId, Long buyerId) {
 
-        // [모니터링] 1. 스톱워치 시작
         Timer.Sample sample = Timer.start(meterRegistry);
-        String resultTag = "FAIL"; // 기본값은 '실패'로 설정
+        String resultTag = "FAIL";
 
         try {
-            // ----------------- 기존 비즈니스 로직 시작 -----------------
             Member buyer = memberRepository.findById(buyerId)
                     .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
 
-            // 1. 아이템 검증 (비관적 락)
-            Item item = itemRepository.findByIdWithPessimisticLock(itemId)
+            // 1. 일반 조회 (비관적 락 제거)
+            Item item = itemRepository.findById(itemId)
                     .orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
 
-            // 나눔 상품이 맞는지 확인
+            // 나눔 상품 검증
             if (item.getItemType() != ItemType.SHARING) {
                 throw new BusinessException(ItemErrorCode.INVALID_ITEM_TYPE);
             }
 
-            // 본인이 올린 나눔에 신청하는 것 방지
+            // 본인 상품 체크
             if (item.getMember().getId().equals(buyerId)) {
                 throw new BusinessException(ItemErrorCode.CANNOT_BUY_MY_ITEM);
             }
 
-            // 2. 중복 신청 방지
-            if (chatRoomRepository.findByItemAndBuyer(item, buyer).isPresent()) {
-                throw new BusinessException(ItemErrorCode.ALREADY_REQUESTED);
-            }
-
-            // 3. 선착순 재고 감소 (핵심 로직)
+            // 2. 선착순 재고 감소 (원자적 업데이트)
             int updatedCount = itemRepository.decreaseStockAtomic(itemId);
-
             if (updatedCount == 0) {
                 throw new BusinessException(ItemErrorCode.OUT_OF_STOCK);
             }
 
-            // 재고 변경 시 상세 캐시 삭제
-            redisTemplate.delete("item:details:" + itemId);
+            // 3. 중복 신청 방지
+            if (chatRoomRepository.findByItemAndBuyer(item, buyer).isPresent()) {
+                itemRepository.increaseStockAtomic(itemId);  // 재고 복구
+                throw new BusinessException(ItemErrorCode.ALREADY_REQUESTED);
+            }
 
-            // 4. 성공 시 채팅방 자동 생성
+            // 4. 채팅방 생성
+            redisTemplate.delete("item:details:" + itemId);
             Long chatRoomId = chatService.createOrGetChatRoom(itemId, buyerId);
 
-            // 여기까지 오면 성공! 태그를 변경
             resultTag = "SUCCESS";
-
             return chatRoomId;
-            // ----------------- 기존 비즈니스 로직 끝 -----------------
 
         } finally {
-            // [모니터링] 2. 로직이 끝나면(성공이든 에러든) 무조건 기록
             sample.stop(Timer.builder("business.sharing.request")
-                    .tag("result", resultTag) // 성공/실패 여부 기록
+                    .tag("result", resultTag)
                     .description("나눔 선착순 신청 처리 시간")
                     .register(meterRegistry));
         }
