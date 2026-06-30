@@ -95,7 +95,8 @@ public class ItemController {
     public ResponseEntity<Slice<ItemListResponse>> getItemList(@AuthenticationPrincipal AuthMember authMember,
                                                                @ModelAttribute ItemSearchCondition condition,
                                                                @PageableDefault(size = 20) Pageable pageable) {
-        Slice<ItemListResponse> itemListResponses = itemService.getItemList(condition, pageable, authMember.getMemberId());
+        Long memberId = (authMember != null) ? authMember.getMemberId() : null;
+        Slice<ItemListResponse> itemListResponses = itemService.getItemList(condition, pageable, memberId);
         return ResponseEntity.ok(itemListResponses);
     }
 

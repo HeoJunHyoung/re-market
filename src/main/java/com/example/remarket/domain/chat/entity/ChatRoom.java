@@ -7,7 +7,15 @@ import jakarta.persistence.*;
 import lombok.Getter;
 
 @Entity
-@Table(name = "chat_rooms")
+@Table(
+        name = "chat_rooms",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_chatroom_item_buyer",
+                        columnNames = {"item_id", "buyer_id"}
+                )
+        }
+)
 @Getter
 public class ChatRoom extends BaseEntity {
 
