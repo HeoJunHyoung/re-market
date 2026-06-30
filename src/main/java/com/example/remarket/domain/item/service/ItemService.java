@@ -31,6 +31,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
@@ -43,6 +45,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @Transactional(readOnly = true)
@@ -66,14 +69,18 @@ public class ItemService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final MeterRegistry meterRegistry;
 
-    // 캐시 설정 상수
+    private final RedissonClient redissonClient; // Redisson
+
+    //=================//
+    //== static 상수 ==//
+    //=================//
     private static final String MAIN_PAGE_CACHE_KEY = "main:items:page:0";
-    private static final long MAIN_PAGE_TTL = 5L; // 메인 페이지 캐시 5초
-    // 락 대기 시간을 10초로 설정하여, 먼저 진입한 스레드가 끝날 때까지 충분히 기다리게 함
+    private static final String MAIN_PAGE_LOCK_KEY = "lock:main:items:page:0";
+    private static final long MAIN_PAGE_TTL = 5L;
+    private static final long LOCK_WAIT_TIME = 10L;   // 락 획득 최대 대기 시간
+    private static final long LOCK_LEASE_TIME = 3L;   // 락 점유 시간
 
-    // Penetration 방어용 Null Object
-    private static final String NULL_OBJECT = "__NULL__";
-
+    private static final String NULL_OBJECT = "__NULL__";  // Penetration 방어용 Null Object
 
     /**
      * 상품 등록
@@ -281,27 +288,27 @@ public class ItemService {
 
         List<String> targetRegions = null;
 
-        Member loginMember = memberRepository.findById(memberId)
-                .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+        if (memberId != null) {
+            Member loginMember = memberRepository.findById(memberId)
+                    .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
 
-        if (loginMember != null && loginMember.getAddress() != null) {
-            // 동네 이름만으로는 중복(평택 중앙동 vs 과천 중앙동)되므로 전체 주소를 조합하여 조회 키로 사용
-            String fullAddress = loginMember.getAddress().getCity() + " " +
-                    loginMember.getAddress().getDistrict() + " " +
-                    loginMember.getAddress().getNeighborhood();
+            if (loginMember.getAddress() != null) {
+                String fullAddress = loginMember.getAddress().getCity() + " " +
+                        loginMember.getAddress().getDistrict() + " " +
+                        loginMember.getAddress().getNeighborhood();
 
-            // distanceLevel이 null이면 기본값 2 사용
-            int distance = (condition.getDistanceLevel() != null) ? condition.getDistanceLevel() : 2;
-
-            // 설정 거리까지 조회 (정책에 따라 변경 가능)
-            targetRegions = adjacencyRepository.findNearbyNeighborhoods(fullAddress, distance);
+                int distance = (condition.getDistanceLevel() != null) ? condition.getDistanceLevel() : 2;
+                targetRegions = adjacencyRepository.findNearbyNeighborhoods(fullAddress, distance);
+            }
         }
 
-        // 2. 캐시 조회 로직
+        // 글로벌 메인 페이지 여부 판단
         boolean isGlobalMainPage = (targetRegions == null) && isMainPageRequest(condition, pageable);
 
+        // =================================================================
+        // [1] 1차 캐시 조회 (Lock 없이 빠르게)
+        // =================================================================
         if (isGlobalMainPage) {
-            // 1차 캐시 조회
             List<ItemListResponse> cachedList = getCachedItemList(MAIN_PAGE_CACHE_KEY);
             if (cachedList != null) {
                 log.debug("Cache Hit (1st): Global Main Page Items");
@@ -309,20 +316,71 @@ public class ItemService {
             }
         }
 
-        // 3. DB 조회 (동네 리스트 전달)
-        Slice<ItemListResponse> result = fetchItemListFromDb(condition, targetRegions, pageable);
-
-        // 4. 캐시 갱신 (글로벌 메인 페이지인 경우에만)
-        if (isGlobalMainPage && result.hasContent()) {
-            try {
-                redisTemplate.opsForValue().set(MAIN_PAGE_CACHE_KEY, result.getContent(), Duration.ofSeconds(MAIN_PAGE_TTL));
-                log.info("Cache Put: Global Main Page Items");
-            } catch (Exception e) {
-                log.error("Redis Set Failed: {}", e.getMessage());
-            }
+        // =================================================================
+        // [2] 캐시 미스 → 분산 락 획득 시도 (Thundering Herd 방지)
+        // =================================================================
+        if (isGlobalMainPage) {
+            return loadMainPageWithLock(condition, targetRegions, pageable);
         }
 
-        return result;
+        // =================================================================
+        // [3] 비 메인페이지 or 락 획득 실패 → DB 직접 조회
+        // =================================================================
+        return fetchItemListFromDb(condition, targetRegions, pageable);
+    }
+
+    /**
+     * 글로벌 메인 페이지 캐시 미스 시 Redisson 락 + DCL로 DB 조회
+     * - private 메서드로 분리하여 클래스 레벨 @Transactional의 영향을 피함
+     */
+    private Slice<ItemListResponse> loadMainPageWithLock(ItemSearchCondition condition, List<String> targetRegions, Pageable pageable) {
+        String lockKey = MAIN_PAGE_CACHE_KEY + ":lock";
+        RLock lock = redissonClient.getLock(lockKey);
+
+        try {
+            boolean isLocked = lock.tryLock(LOCK_WAIT_TIME, LOCK_LEASE_TIME, TimeUnit.SECONDS);
+
+            if (!isLocked) {
+                log.warn("Main Page Lock 획득 실패 (Timeout) - DB 직접 조회");
+                return fetchItemListFromDb(condition, targetRegions, pageable);
+            }
+
+            try {
+                // Double Checked Locking
+                List<ItemListResponse> dclCached = getCachedItemList(MAIN_PAGE_CACHE_KEY);
+                if (dclCached != null) {
+                    log.debug("Cache Hit (DCL): Global Main Page Items");
+                    return new SliceImpl<>(dclCached, pageable, true);
+                }
+
+                // DB 조회 (락을 획득한 단 하나의 스레드만 실행)
+                log.info("DCL DB Fetch: Global Main Page Items");
+                Slice<ItemListResponse> result = fetchItemListFromDb(condition, targetRegions, pageable);
+
+                // 캐시 저장
+                if (result.hasContent()) {
+                    try {
+                        redisTemplate.opsForValue().set(
+                                MAIN_PAGE_CACHE_KEY,
+                                result.getContent(),
+                                Duration.ofSeconds(MAIN_PAGE_TTL)
+                        );
+                        log.info("Cache Put (after DCL): Global Main Page Items");
+                    } catch (Exception e) {
+                        log.error("Redis Set Failed: {}", e.getMessage());
+                    }
+                }
+                return result;
+
+            } finally {
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Redis Lock Interrupted", e);
+        }
     }
 
     /**
