@@ -38,6 +38,10 @@ public interface ItemRepository extends JpaRepository<Item, Long>, ItemRepositor
     @Query("UPDATE Item i SET i.stockQuantity = i.stockQuantity - 1 WHERE i.id = :itemId AND i.stockQuantity > 0")
     int decreaseStockAtomic(@Param("itemId") Long itemId);
 
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Item i SET i.stockQuantity = i.stockQuantity + 1 WHERE i.id = :itemId")
+    int increaseStockAtomic(@Param("itemId") Long itemId);
+
     // 관심 수 증가 (원자적 업데이트)
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Item i SET i.favoriteCount = i.favoriteCount + 1 WHERE i.id = :id")
